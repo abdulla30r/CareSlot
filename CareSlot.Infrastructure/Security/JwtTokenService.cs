@@ -18,30 +18,38 @@ public class JwtTokenService : IJwtTokenService
         new UserPersonaDto(
             "customer-john", 
             "John Doe", 
+            "patient@careslot.local",
             Roles.Customer, 
             "Self-service patient booking clinical appointments", 
-            "JD"
+            "JD",
+            "Patient123!"
         ),
         new UserPersonaDto(
             "receptionist-elena", 
             "Elena Vance", 
+            "receptionist@careslot.local",
             Roles.Receptionist, 
             "Front desk coordinator booking on behalf of clinic patients", 
-            "EV"
+            "EV",
+            "Clinic123!"
         ),
         new UserPersonaDto(
             "doctor-sarah", 
             "Dr. Sarah Jenkins", 
+            "doctor@careslot.local",
             Roles.Doctor, 
             "Attending Cardiologist inspecting schedule & generating slots", 
-            "SJ"
+            "SJ",
+            "Doctor123!"
         ),
         new UserPersonaDto(
             "admin-marcus", 
             "Marcus Brody", 
+            "admin@careslot.local",
             Roles.Admin, 
             "System Administrator & HIPAA Compliance Auditor", 
-            "MB"
+            "MB",
+            "Admin123!"
         )
     };
 
@@ -51,6 +59,24 @@ public class JwtTokenService : IJwtTokenService
     }
 
     public IEnumerable<UserPersonaDto> GetAvailablePersonas() => _personas;
+
+    public UserPersonaDto? ValidateCredentials(string email, string password)
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            return null;
+
+        var persona = _personas.FirstOrDefault(p => 
+            string.Equals(p.Email, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Id, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(p.Role, email.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (persona != null && persona.DefaultPassword == password)
+        {
+            return persona;
+        }
+
+        return null;
+    }
 
     public TokenResponse GenerateToken(string userId, string name, string role)
     {

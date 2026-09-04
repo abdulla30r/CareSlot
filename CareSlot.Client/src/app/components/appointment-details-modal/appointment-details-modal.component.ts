@@ -107,3 +107,4 @@ export class AppointmentDetailsModalComponent {
   @Input() details: AppointmentDetails | null = null;
   @Output() close = new EventEmitter<void>();
 }
+

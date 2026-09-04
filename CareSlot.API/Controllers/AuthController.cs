@@ -4,6 +4,9 @@ using CareSlot.Application.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using CareSlot.Domain.Entities;
+using CareSlot.Infrastructure.Persistence;
+
 namespace CareSlot.API.Controllers;
 
 [ApiController]
@@ -12,11 +15,58 @@ public class AuthController : ControllerBase
 {
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly CareSlotDbContext _context;
 
-    public AuthController(IJwtTokenService jwtTokenService, ICurrentUserService currentUserService)
+    public AuthController(
+        IJwtTokenService jwtTokenService, 
+        ICurrentUserService currentUserService,
+        CareSlotDbContext context)
     {
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
+        _context = context;
+    }
+
+    /// <summary>
+    /// Authenticates a user with email and password, issuing a signed JWT token.
+    /// Records HIPAA compliance audit logs for both successful and failed attempts.
+    /// </summary>
+    [HttpPost("login")]
+    public async Task<ActionResult<TokenResponse>> Login([FromBody] LoginRequest request, CancellationToken ct)
+    {
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+        var user = _jwtTokenService.ValidateCredentials(request.Email, request.Password);
+        if (user == null)
+        {
+            _context.AuditLogs.Add(new AuditLog
+            {
+                UserId = request.Email,
+                Action = "LOGIN_FAILED",
+                ResourceName = "Auth",
+                ResourceId = request.Email,
+                IpAddress = clientIp,
+                TimestampUtc = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(ct);
+
+            return Unauthorized(new { message = "Invalid email or password." });
+        }
+
+        // Record successful login
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = user.Id,
+            Action = "LOGIN_SUCCESS",
+            ResourceName = "Auth",
+            ResourceId = user.Id,
+            IpAddress = clientIp,
+            TimestampUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync(ct);
+
+        var tokenResponse = _jwtTokenService.GenerateToken(user.Id, user.Name, user.Role);
+        return Ok(tokenResponse);
     }
 
     /// <summary>

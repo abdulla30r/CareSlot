@@ -10,3 +10,4 @@ public record AppointmentDetailsDto(
     string NationalId,
     string ClinicalNotes
 );
+

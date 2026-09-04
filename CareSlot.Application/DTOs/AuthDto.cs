@@ -1,6 +1,6 @@
 namespace CareSlot.Application.DTOs;
 
-public record LoginRequest(string Username, string Password);
+public record LoginRequest(string Email, string Password);
 
 public record TokenResponse(
     string Token, 
@@ -13,8 +13,10 @@ public record TokenResponse(
 public record UserPersonaDto(
     string Id, 
     string Name, 
+    string Email,
     string Role, 
     string Description, 
-    string AvatarInitials
+    string AvatarInitials,
+    string DefaultPassword
 );
 

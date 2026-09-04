@@ -56,6 +56,27 @@ interface DayGroup {
             </span>
             <span>{{ signalR.isConnected() ? 'Real-Time Sync Active' : 'Connecting to Server...' }}</span>
           </div>
+
+          <!-- User Profile & Logout -->
+          <div *ngIf="auth.currentPersona() as user" class="flex items-center gap-2 pl-3 border-l border-slate-200">
+            <div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs">
+              <span class="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[10px]">
+                {{ user.avatarInitials }}
+              </span>
+              <span class="font-bold text-slate-800 text-xs">{{ user.name }}</span>
+            </div>
+
+            <button 
+              (click)="auth.logout()"
+              class="px-2.5 py-1.5 rounded-full text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-1"
+              title="Sign Out"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span>Logout</span>
+            </button>
+          </div>
         </div>
       </header>
 
