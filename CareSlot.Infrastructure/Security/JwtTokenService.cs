@@ -4,6 +4,9 @@ using System.Text;
 using CareSlot.Application.Common.Interfaces;
 using CareSlot.Application.Common.Security;
 using CareSlot.Application.DTOs;
+using CareSlot.Domain.Entities;
+using CareSlot.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
@@ -12,67 +15,87 @@ namespace CareSlot.Infrastructure.Security;
 public class JwtTokenService : IJwtTokenService
 {
     private readonly IConfiguration _configuration;
+    private readonly CareSlotDbContext _context;
+    private readonly IPasswordHasherService _passwordHasher;
 
-    private static readonly List<UserPersonaDto> _personas = new()
-    {
-        new UserPersonaDto(
-            "customer-john", 
-            "John Doe", 
-            "patient@careslot.local",
-            Roles.Customer, 
-            "Self-service patient booking clinical appointments", 
-            "JD",
-            "Patient123!"
-        ),
-        new UserPersonaDto(
-            "11111111-1111-1111-1111-111111111111", 
-            "Dr. Sarah Jenkins", 
-            "doctor@careslot.local",
-            Roles.Doctor, 
-            "Attending Cardiologist inspecting schedule & generating slots", 
-            "SJ",
-            "Doctor123!"
-        ),
-        new UserPersonaDto(
-            "admin-marcus", 
-            "Marcus Brody", 
-            "admin@careslot.local",
-            Roles.Admin, 
-            "System Administrator & HIPAA Compliance Auditor", 
-            "MB",
-            "Admin123!"
-        )
-    };
-
-    public JwtTokenService(IConfiguration configuration)
+    public JwtTokenService(
+        IConfiguration configuration,
+        CareSlotDbContext context,
+        IPasswordHasherService passwordHasher)
     {
         _configuration = configuration;
+        _context = context;
+        _passwordHasher = passwordHasher;
     }
 
-    public IEnumerable<UserPersonaDto> GetAvailablePersonas() => _personas;
+    public async Task<IEnumerable<UserPersonaDto>> GetAvailablePersonasAsync(CancellationToken ct = default)
+    {
+        var users = await _context.Users
+            .AsNoTracking()
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .Where(u => u.IsActive)
+            .ToListAsync(ct);
 
-    public UserPersonaDto? ValidateCredentials(string email, string password)
+        return users.Select(u =>
+        {
+            var primaryRole = u.UserRoles.FirstOrDefault()?.Role.Name ?? Roles.Customer;
+            var roleDesc = u.UserRoles.FirstOrDefault()?.Role.Description ?? "CareSlot account";
+            var defaultPassword = primaryRole switch
+            {
+                Roles.Doctor => "Doctor123!",
+                Roles.Admin => "Admin123!",
+                _ => "Patient123!"
+            };
+
+            return new UserPersonaDto(
+                u.Id.ToString(),
+                u.Name,
+                u.Email,
+                primaryRole,
+                roleDesc,
+                u.Initials,
+                defaultPassword
+            );
+        });
+    }
+
+    public async Task<UserPersonaDto?> ValidateCredentialsAsync(string email, string password, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             return null;
 
-        lock (_personas)
-        {
-            var persona = _personas.FirstOrDefault(p => 
-                string.Equals(p.Email, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(p.Id, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(p.Role, email.Trim(), StringComparison.OrdinalIgnoreCase));
+        var trimmed = email.Trim();
 
-            if (persona != null && persona.DefaultPassword == password)
-            {
-                return persona;
-            }
+        var user = await _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u =>
+                u.Email == trimmed ||
+                u.Id.ToString() == trimmed ||
+                u.UserRoles.Any(ur => ur.Role.Name == trimmed), ct);
 
+        if (user == null || !user.IsActive)
             return null;
-        }
+
+        if (!_passwordHasher.VerifyPassword(password, user.PasswordHash))
+            return null;
+
+        var primaryRole = user.UserRoles.FirstOrDefault()?.Role.Name ?? Roles.Customer;
+        var roleDesc = user.UserRoles.FirstOrDefault()?.Role.Description ?? "CareSlot account";
+
+        return new UserPersonaDto(
+            user.Id.ToString(),
+            user.Name,
+            user.Email,
+            primaryRole,
+            roleDesc,
+            user.Initials,
+            password
+        );
     }
 
-    public UserPersonaDto RegisterCustomer(string name, string email, string password)
+    public async Task<UserPersonaDto> RegisterCustomerAsync(string name, string email, string password, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Full Name is required.", nameof(name));
@@ -81,40 +104,71 @@ public class JwtTokenService : IJwtTokenService
         if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
             throw new ArgumentException("Password must be at least 6 characters.", nameof(password));
 
-        lock (_personas)
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+
+        var exists = await _context.Users.AnyAsync(u => u.Email == normalizedEmail, ct);
+        if (exists)
         {
-            if (_personas.Any(p => string.Equals(p.Email, email.Trim(), StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new InvalidOperationException("An account with this email address already exists.");
-            }
-
-            var nameParts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            var initials = nameParts.Length switch
-            {
-                0 => "PT",
-                1 => nameParts[0][0].ToString().ToUpperInvariant(),
-                _ => $"{nameParts[0][0]}{nameParts[^1][0]}".ToUpperInvariant()
-            };
-
-            var userId = $"customer-{Guid.NewGuid().ToString("N")[..8]}";
-            var newCustomer = new UserPersonaDto(
-                userId,
-                name.Trim(),
-                email.Trim().ToLowerInvariant(),
-                Roles.Customer, // User can strictly only create account as Customer
-                "Self-registered patient account",
-                initials,
-                password
-            );
-
-            _personas.Add(newCustomer);
-            return newCustomer;
+            throw new InvalidOperationException("An account with this email address already exists.");
         }
+
+        var customerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.Customer, ct);
+        if (customerRole == null)
+        {
+            customerRole = new Role
+            {
+                Id = Guid.NewGuid(),
+                Name = Roles.Customer,
+                Description = "Self-service patient booking clinical appointments"
+            };
+            _context.Roles.Add(customerRole);
+        }
+
+        var nameParts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var initials = nameParts.Length switch
+        {
+            0 => "PT",
+            1 => nameParts[0][0].ToString().ToUpperInvariant(),
+            _ => $"{nameParts[0][0]}{nameParts[^1][0]}".ToUpperInvariant()
+        };
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Name = name.Trim(),
+            Email = normalizedEmail,
+            Initials = initials,
+            CreatedAtUtc = DateTime.UtcNow,
+            IsActive = true
+        };
+        user.PasswordHash = _passwordHasher.HashPassword(password);
+
+        var userRole = new UserRole
+        {
+            UserId = user.Id,
+            RoleId = customerRole.Id,
+            User = user,
+            Role = customerRole
+        };
+        user.UserRoles.Add(userRole);
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync(ct);
+
+        return new UserPersonaDto(
+            user.Id.ToString(),
+            user.Name,
+            user.Email,
+            Roles.Customer,
+            customerRole.Description,
+            user.Initials,
+            password
+        );
     }
 
     public TokenResponse GenerateToken(string userId, string name, string role)
     {
-        var secretKey = _configuration["JwtSettings:SecretKey"] 
+        var secretKey = _configuration["JwtSettings:SecretKey"]
             ?? "CareSlotSuperSecretSigningKeyForHIPAASystem2026!512bitLongString";
         var issuer = _configuration["JwtSettings:Issuer"] ?? "CareSlot.API";
         var audience = _configuration["JwtSettings:Audience"] ?? "CareSlot.Client";
@@ -123,13 +177,18 @@ public class JwtTokenService : IJwtTokenService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        var roleList = role.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId),
             new(ClaimTypes.Name, name),
-            new(ClaimTypes.Role, role),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        foreach (var r in roleList)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, r));
+        }
 
         var expiresAtUtc = DateTime.UtcNow.AddMinutes(expiryMinutes);
 
@@ -146,7 +205,6 @@ public class JwtTokenService : IJwtTokenService
         var token = tokenHandler.CreateToken(tokenDescriptor);
         var tokenString = tokenHandler.WriteToken(token);
 
-        return new TokenResponse(tokenString, userId, name, role, expiresAtUtc);
+        return new TokenResponse(tokenString, userId, name, roleList.FirstOrDefault() ?? Roles.Customer, expiresAtUtc);
     }
 }
-

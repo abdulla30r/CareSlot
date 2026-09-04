@@ -1,11 +1,9 @@
 using CareSlot.Application.Common.Interfaces;
-using CareSlot.Application.Common.Security;
 using CareSlot.Application.DTOs;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-
 using CareSlot.Domain.Entities;
 using CareSlot.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace CareSlot.API.Controllers;
 
@@ -36,7 +34,7 @@ public class AuthController : ControllerBase
     {
         var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
 
-        var user = _jwtTokenService.ValidateCredentials(request.Email, request.Password);
+        var user = await _jwtTokenService.ValidateCredentialsAsync(request.Email, request.Password, ct);
         if (user == null)
         {
             _context.AuditLogs.Add(new AuditLog
@@ -70,8 +68,8 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Self-service account creation for patients. Role is strictly hardcoded to Customer.
-    /// Staff roles (Receptionist, Doctor, Admin) cannot be self-registered.
+    /// Self-service account creation for patients. Role is strictly assigned to Customer.
+    /// Staff roles (Doctor, Admin) cannot be self-registered.
     /// Records HIPAA compliance audit log.
     /// </summary>
     [HttpPost("register")]
@@ -81,7 +79,7 @@ public class AuthController : ControllerBase
 
         try
         {
-            var user = _jwtTokenService.RegisterCustomer(request.Name, request.Email, request.Password);
+            var user = await _jwtTokenService.RegisterCustomerAsync(request.Name, request.Email, request.Password, ct);
 
             // Record audit log for patient registration
             _context.AuditLogs.Add(new AuditLog
@@ -109,23 +107,25 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the available seed personas (Customer, Doctor, Admin) for testing and UI switching.
+    /// Returns the available seed personas (Customer, Doctor, Admin) from the database for testing and UI switching.
     /// </summary>
     [HttpGet("personas")]
-    public ActionResult<IEnumerable<UserPersonaDto>> GetPersonas()
+    public async Task<ActionResult<IEnumerable<UserPersonaDto>>> GetPersonas(CancellationToken ct)
     {
-        return Ok(_jwtTokenService.GetAvailablePersonas());
+        var personas = await _jwtTokenService.GetAvailablePersonasAsync(ct);
+        return Ok(personas);
     }
 
     /// <summary>
     /// Issues a signed JWT token for a specific persona ID.
     /// </summary>
     [HttpPost("token")]
-    public ActionResult<TokenResponse> GetToken([FromQuery] string personaId)
+    public async Task<ActionResult<TokenResponse>> GetToken([FromQuery] string personaId, CancellationToken ct)
     {
-        var persona = _jwtTokenService.GetAvailablePersonas()
-            .FirstOrDefault(p => string.Equals(p.Id, personaId, StringComparison.OrdinalIgnoreCase) 
-                              || string.Equals(p.Role, personaId, StringComparison.OrdinalIgnoreCase));
+        var personas = await _jwtTokenService.GetAvailablePersonasAsync(ct);
+        var persona = personas.FirstOrDefault(p => 
+            string.Equals(p.Id, personaId, StringComparison.OrdinalIgnoreCase) || 
+            string.Equals(p.Role, personaId, StringComparison.OrdinalIgnoreCase));
 
         if (persona == null)
         {
@@ -152,4 +152,3 @@ public class AuthController : ControllerBase
         });
     }
 }
-

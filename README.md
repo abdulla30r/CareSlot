@@ -133,11 +133,34 @@ The system enforces three distinct personas with dedicated workflows:
 
 ## 🗄️ Database Schema
 
-The database schema is kept ultra-lean, comprising three normalized tables:
+The database schema is normalized into five focused SQL Server tables:
 
 ```mermaid
 erDiagram
     DOCTORS ||--o{ DOCTOR_SLOTS : "has"
+    USERS ||--o{ USER_ROLES : "has"
+    ROLES ||--o{ USER_ROLES : "assigned to"
+    DOCTORS ||--o| USERS : "shares Id with"
+
+    USERS {
+        guid Id PK
+        nvarchar(150) Name
+        nvarchar(256) Email UK
+        nvarchar(500) PasswordHash "PBKDF2 Salted Hash"
+        nvarchar(10) Initials
+        datetime2 CreatedAtUtc
+        bit IsActive
+    }
+    ROLES {
+        guid Id PK
+        nvarchar(50) Name UK
+        nvarchar(250) Description
+        datetime2 CreatedAtUtc
+    }
+    USER_ROLES {
+        guid UserId PK,FK
+        guid RoleId PK,FK
+    }
     DOCTORS {
         guid Id PK
         nvarchar(150) Name

@@ -25,7 +25,8 @@ public static class DependencyInjection
         // 3. Register Security, RBAC & Current User Context
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddSingleton<IJwtTokenService, JwtTokenService>();
+        services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
+        services.AddScoped<IJwtTokenService, JwtTokenService>();
 
         // 4. Register Scheduling Service
         services.AddScoped<ISchedulingService, SchedulingService>();
