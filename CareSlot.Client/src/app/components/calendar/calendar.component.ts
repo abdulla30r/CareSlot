@@ -5,6 +5,7 @@ import { Doctor, Slot, BookSlotRequest } from '../../models/schedule.models';
 import { SchedulingService } from '../../services/scheduling.service';
 import { SignalRService } from '../../services/signalr.service';
 import { BookingModalComponent } from '../booking-modal/booking-modal.component';
+import { AuditDrawerComponent } from '../audit-drawer/audit-drawer.component';
 
 interface DayGroup {
   date: Date;
@@ -14,7 +15,7 @@ interface DayGroup {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [CommonModule, BookingModalComponent],
+  imports: [CommonModule, BookingModalComponent, AuditDrawerComponent],
   template: `
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Top Navigation Bar -->
@@ -33,8 +34,16 @@ interface DayGroup {
           </div>
         </div>
 
-        <!-- Real-Time SignalR Connection Status -->
+        <!-- Real-Time SignalR Connection Status & Audit Log Button -->
         <div class="flex items-center gap-3">
+          <button 
+            (click)="isAuditDrawerOpen.set(true)"
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-all"
+          >
+            <span>🛡️</span>
+            <span>HIPAA Audit Trail</span>
+          </button>
+
           <div class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
                [ngClass]="signalR.isConnected() ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
             <span class="relative flex h-2 w-2">
@@ -158,6 +167,12 @@ interface DayGroup {
         (book)="confirmBooking($event)"
         (cancel)="cancelHold()"
       ></app-booking-modal>
+
+      <!-- HIPAA Audit Log Drawer -->
+      <app-audit-drawer 
+        *ngIf="isAuditDrawerOpen()"
+        (close)="isAuditDrawerOpen.set(false)"
+      ></app-audit-drawer>
     </div>
   `
 })
@@ -173,6 +188,7 @@ export class CalendarComponent implements OnInit, OnDestroy {
   public activeHoldingSlot: Slot | null = null;
   public bookingError: string | null = null;
   public isBookingSubmitting = false;
+  public isAuditDrawerOpen = signal<boolean>(false);
 
   private signalRSub?: Subscription;
 

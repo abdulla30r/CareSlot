@@ -21,5 +21,8 @@ public interface ISchedulingService
 
     // 6. Confirm Booking (Concurrency Check 2 & Encrypts PHI at rest)
     Task<SlotDto> BookSlotAsync(Guid slotId, BookSlotRequest request, string clientIp, CancellationToken ct = default);
+
+    // 7. Get chronological HIPAA Audit Logs
+    Task<List<AuditLogDto>> GetAuditLogsAsync(int limit = 50, CancellationToken ct = default);
 }
 

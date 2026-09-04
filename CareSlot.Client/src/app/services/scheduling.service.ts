@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Doctor, Slot, HoldSlotRequest, BookSlotRequest } from '../models/schedule.models';
+import { Doctor, Slot, HoldSlotRequest, BookSlotRequest, AuditLog } from '../models/schedule.models';
 import { SignalRService } from './signalr.service';
 
 @Injectable({
@@ -65,6 +65,14 @@ export class SchedulingService {
    */
   public bookSlot(slotId: string, request: BookSlotRequest): Observable<Slot> {
     return this.http.post<Slot>(`/api/slots/${slotId}/book`, request);
+  }
+
+  /**
+   * Fetches the immutable HIPAA audit trail.
+   */
+  public getAuditLogs(limit = 50): Observable<AuditLog[]> {
+    const params = new HttpParams().set('limit', limit.toString());
+    return this.http.get<AuditLog[]>('/api/audit-logs', { params });
   }
 }
 

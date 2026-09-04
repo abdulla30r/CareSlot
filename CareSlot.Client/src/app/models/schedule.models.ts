@@ -29,3 +29,13 @@ export interface BookSlotRequest {
   rowVersion: string;
 }
 
+export interface AuditLog {
+  id: string;
+  userId: string;
+  action: string;
+  resourceName: string;
+  resourceId: string;
+  ipAddress: string;
+  timestampUtc: string;
+}
+

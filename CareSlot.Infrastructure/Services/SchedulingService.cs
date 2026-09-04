@@ -262,5 +262,23 @@ public class SchedulingService : ISchedulingService
             slot.PatientName
         );
     }
+
+    public async Task<List<AuditLogDto>> GetAuditLogsAsync(int limit = 50, CancellationToken ct = default)
+    {
+        return await _context.AuditLogs
+            .AsNoTracking()
+            .OrderByDescending(a => a.TimestampUtc)
+            .Take(limit)
+            .Select(a => new AuditLogDto(
+                a.Id,
+                a.UserId,
+                a.Action,
+                a.ResourceName,
+                a.ResourceId,
+                a.IpAddress,
+                a.TimestampUtc
+            ))
+            .ToListAsync(ct);
+    }
 }
 
