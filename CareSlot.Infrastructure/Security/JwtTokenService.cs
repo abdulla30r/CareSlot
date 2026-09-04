@@ -65,17 +65,60 @@ public class JwtTokenService : IJwtTokenService
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
             return null;
 
-        var persona = _personas.FirstOrDefault(p => 
-            string.Equals(p.Email, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Id, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(p.Role, email.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (persona != null && persona.DefaultPassword == password)
+        lock (_personas)
         {
-            return persona;
-        }
+            var persona = _personas.FirstOrDefault(p => 
+                string.Equals(p.Email, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.Id, email.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.Role, email.Trim(), StringComparison.OrdinalIgnoreCase));
 
-        return null;
+            if (persona != null && persona.DefaultPassword == password)
+            {
+                return persona;
+            }
+
+            return null;
+        }
+    }
+
+    public UserPersonaDto RegisterCustomer(string name, string email, string password)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Full Name is required.", nameof(name));
+        if (string.IsNullOrWhiteSpace(email))
+            throw new ArgumentException("Email address is required.", nameof(email));
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
+            throw new ArgumentException("Password must be at least 6 characters.", nameof(password));
+
+        lock (_personas)
+        {
+            if (_personas.Any(p => string.Equals(p.Email, email.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new InvalidOperationException("An account with this email address already exists.");
+            }
+
+            var nameParts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var initials = nameParts.Length switch
+            {
+                0 => "PT",
+                1 => nameParts[0][0].ToString().ToUpperInvariant(),
+                _ => $"{nameParts[0][0]}{nameParts[^1][0]}".ToUpperInvariant()
+            };
+
+            var userId = $"customer-{Guid.NewGuid().ToString("N")[..8]}";
+            var newCustomer = new UserPersonaDto(
+                userId,
+                name.Trim(),
+                email.Trim().ToLowerInvariant(),
+                Roles.Customer, // User can strictly only create account as Customer
+                "Self-registered patient account",
+                initials,
+                password
+            );
+
+            _personas.Add(newCustomer);
+            return newCustomer;
+        }
     }
 
     public TokenResponse GenerateToken(string userId, string name, string role)

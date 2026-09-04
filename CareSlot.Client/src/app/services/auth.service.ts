@@ -105,6 +105,33 @@ export class AuthService {
     );
   }
 
+  public register(name: string, email: string, password: string): Observable<TokenResponse> {
+    return this.http.post<TokenResponse>('/api/auth/register', { name, email, password }).pipe(
+      tap((res) => {
+        this.token.set(res.token);
+        localStorage.setItem(TOKEN_STORAGE_KEY, res.token);
+
+        const nameParts = res.name.trim().split(' ');
+        const initials = nameParts.length === 1 
+          ? nameParts[0].substring(0, 2).toUpperCase() 
+          : (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+
+        const newPersona: UserPersona = {
+          id: res.userId,
+          name: res.name,
+          email: email,
+          role: 'Customer',
+          description: 'Self-registered patient account',
+          avatarInitials: initials
+        };
+
+        this.currentPersona.set(newPersona);
+        localStorage.setItem(PERSONA_STORAGE_KEY, JSON.stringify(newPersona));
+        this.loadPersonas();
+      })
+    );
+  }
+
   public switchPersona(personaId: string): void {
     this.http.post<TokenResponse>(`/api/auth/token?personaId=${personaId}`, {}).subscribe({
       next: (res) => {

@@ -2,6 +2,8 @@ namespace CareSlot.Application.DTOs;
 
 public record LoginRequest(string Email, string Password);
 
+public record RegisterCustomerRequest(string Name, string Email, string Password);
+
 public record TokenResponse(
     string Token, 
     string UserId, 

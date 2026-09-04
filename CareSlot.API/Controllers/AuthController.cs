@@ -70,6 +70,45 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Self-service account creation for patients. Role is strictly hardcoded to Customer.
+    /// Staff roles (Receptionist, Doctor, Admin) cannot be self-registered.
+    /// Records HIPAA compliance audit log.
+    /// </summary>
+    [HttpPost("register")]
+    public async Task<ActionResult<TokenResponse>> Register([FromBody] RegisterCustomerRequest request, CancellationToken ct)
+    {
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+        try
+        {
+            var user = _jwtTokenService.RegisterCustomer(request.Name, request.Email, request.Password);
+
+            // Record audit log for patient registration
+            _context.AuditLogs.Add(new AuditLog
+            {
+                UserId = user.Id,
+                Action = "CUSTOMER_REGISTERED",
+                ResourceName = "Auth",
+                ResourceId = user.Id,
+                IpAddress = clientIp,
+                TimestampUtc = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(ct);
+
+            var tokenResponse = _jwtTokenService.GenerateToken(user.Id, user.Name, user.Role);
+            return Ok(tokenResponse);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Returns the 4 available seed personas (Customer, Receptionist, Doctor, Admin) for testing and UI switching.
     /// </summary>
     [HttpGet("personas")]
