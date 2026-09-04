@@ -7,7 +7,7 @@ export interface UserPersona {
   id: string;
   name: string;
   email: string;
-  role: 'Customer' | 'Receptionist' | 'Doctor' | 'Admin';
+  role: 'Customer' | 'Doctor' | 'Admin';
   description: string;
   avatarInitials: string;
   defaultPassword?: string;
@@ -17,7 +17,7 @@ export interface TokenResponse {
   token: string;
   userId: string;
   name: string;
-  role: 'Customer' | 'Receptionist' | 'Doctor' | 'Admin';
+  role: 'Customer' | 'Doctor' | 'Admin';
   expiresAtUtc: string;
 }
 
@@ -38,11 +38,10 @@ export class AuthService {
   public isAuthenticated = computed(() => !!this.token());
   public role = computed(() => this.currentPersona()?.role ?? null);
   public isCustomer = computed(() => this.role() === 'Customer');
-  public isReceptionist = computed(() => this.role() === 'Receptionist');
   public isDoctor = computed(() => this.role() === 'Doctor');
   public isAdmin = computed(() => this.role() === 'Admin');
 
-  public canBook = computed(() => this.isCustomer() || this.isReceptionist() || this.isAdmin());
+  public canBook = computed(() => this.isCustomer() || this.isAdmin());
   public canGenerateSlots = computed(() => this.isDoctor() || this.isAdmin());
   public canViewAuditLogs = computed(() => this.isAdmin());
 

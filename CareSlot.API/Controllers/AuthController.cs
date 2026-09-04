@@ -109,7 +109,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the 4 available seed personas (Customer, Receptionist, Doctor, Admin) for testing and UI switching.
+    /// Returns the available seed personas (Customer, Doctor, Admin) for testing and UI switching.
     /// </summary>
     [HttpGet("personas")]
     public ActionResult<IEnumerable<UserPersonaDto>> GetPersonas()
@@ -129,7 +129,7 @@ public class AuthController : ControllerBase
 
         if (persona == null)
         {
-            return BadRequest(new { message = $"Persona '{personaId}' not found. Available personas: Customer, Receptionist, Doctor, Admin." });
+            return BadRequest(new { message = $"Persona '{personaId}' not found. Available personas: Customer, Doctor, Admin." });
         }
 
         var tokenResponse = _jwtTokenService.GenerateToken(persona.Id, persona.Name, persona.Role);

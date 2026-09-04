@@ -7,6 +7,8 @@ import { SignalRService } from '../../services/signalr.service';
 import { BookingModalComponent } from '../booking-modal/booking-modal.component';
 import { AuditDrawerComponent } from '../audit-drawer/audit-drawer.component';
 import { AppointmentDetailsModalComponent } from '../appointment-details-modal/appointment-details-modal.component';
+import { ManageDoctorsModalComponent } from '../manage-doctors-modal/manage-doctors-modal.component';
+import { ManageAvailabilityModalComponent } from '../manage-availability-modal/manage-availability-modal.component';
 import { AuthService } from '../../services/auth.service';
 
 interface DayGroup {
@@ -17,7 +19,14 @@ interface DayGroup {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [CommonModule, BookingModalComponent, AuditDrawerComponent, AppointmentDetailsModalComponent],
+  imports: [
+    CommonModule, 
+    BookingModalComponent, 
+    AuditDrawerComponent, 
+    AppointmentDetailsModalComponent,
+    ManageDoctorsModalComponent,
+    ManageAvailabilityModalComponent
+  ],
   template: `
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Top Navigation Bar -->
@@ -38,14 +47,24 @@ interface DayGroup {
 
         <!-- Real-Time SignalR Connection Status & Audit Log Button -->
         <div class="flex items-center gap-3">
+          <!-- Manage Doctors visible ONLY to Admin -->
+          <button 
+            *ngIf="auth.isAdmin()"
+            (click)="isManageDoctorsOpen.set(true)"
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer"
+          >
+            <span>👨‍⚕️</span>
+            <span>Manage Doctors</span>
+          </button>
+
           <!-- Audit Trail visible ONLY to Admin -->
           <button 
             *ngIf="auth.canViewAuditLogs()"
             (click)="isAuditDrawerOpen.set(true)"
-            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-all"
+            class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-all cursor-pointer"
           >
             <span>🛡️</span>
-            <span>HIPAA Audit Trail (Admin)</span>
+            <span>HIPAA Audit Trail</span>
           </button>
 
           <div class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
@@ -59,16 +78,24 @@ interface DayGroup {
 
           <!-- User Profile & Logout -->
           <div *ngIf="auth.currentPersona() as user" class="flex items-center gap-2 pl-3 border-l border-slate-200">
-            <div class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs">
+            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs">
               <span class="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[10px]">
                 {{ user.avatarInitials }}
               </span>
               <span class="font-bold text-slate-800 text-xs">{{ user.name }}</span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold"
+                    [ngClass]="{
+                      'bg-purple-100 text-purple-800': user.role === 'Customer',
+                      'bg-emerald-100 text-emerald-800': user.role === 'Doctor',
+                      'bg-slate-900 text-white': user.role === 'Admin'
+                    }">
+                {{ user.role }}
+              </span>
             </div>
 
             <button 
               (click)="auth.logout()"
-              class="px-2.5 py-1.5 rounded-full text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-1"
+              class="px-2.5 py-1.5 rounded-full text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
               title="Sign Out"
             >
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -80,40 +107,6 @@ interface DayGroup {
         </div>
       </header>
 
-      <!-- RBAC Persona Quick-Switcher Banner -->
-      <div class="mb-6 bg-slate-900 text-white p-4 rounded-2xl shadow-lg border border-slate-800">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Active Role & Persona:</span>
-              <span class="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-0.5 rounded-full font-bold">
-                {{ auth.currentPersona()?.role || 'Guest' }}
-              </span>
-            </div>
-            <p class="text-[11px] text-slate-400 mt-1">
-              {{ auth.currentPersona()?.description }}
-            </p>
-          </div>
-
-          <!-- 4 Roles: Customer, Receptionist, Doctor, Admin -->
-          <div class="flex flex-wrap items-center gap-2">
-            <button 
-              *ngFor="let p of auth.personas()" 
-              (click)="auth.switchPersona(p.id)"
-              [ngClass]="auth.currentPersona()?.id === p.id 
-                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400 font-bold' 
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700 font-medium'"
-              class="px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5"
-            >
-              <span class="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-[10px] font-bold">
-                {{ p.avatarInitials }}
-              </span>
-              <span>{{ p.name }} ({{ p.role }})</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- Doctor Selection Tabs -->
       <div class="mb-8 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
         <div class="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 py-1 mb-1">Select Clinician:</div>
@@ -124,9 +117,19 @@ interface DayGroup {
             [ngClass]="selectedDoctor()?.id === doc.id 
               ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
               : 'text-slate-700 hover:bg-slate-100'"
-            class="px-4 py-3 rounded-xl text-left transition-all flex flex-col justify-center"
+            class="px-4 py-3 rounded-xl text-left transition-all flex flex-col justify-center cursor-pointer"
           >
-            <span class="font-bold text-sm">{{ doc.name }}</span>
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-sm">{{ doc.name }}</span>
+              <span *ngIf="isDoctorSelf(doc)" 
+                    class="text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase"
+                    [ngClass]="selectedDoctor()?.id === doc.id ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'">
+                You
+              </span>
+              <span *ngIf="auth.isDoctor() && !isDoctorSelf(doc)" class="text-[10px] px-1.5 py-0.5 rounded text-slate-400 font-medium">
+                Read Only
+              </span>
+            </div>
             <span class="text-xs opacity-80">{{ doc.specialty }}</span>
           </button>
         </div>
@@ -141,17 +144,24 @@ interface DayGroup {
             <p class="text-xs text-slate-500">Slots are locked for 2 minutes upon selection to prevent double-booking.</p>
           </div>
 
-          <!-- Helper: Generate slots if empty (Doctor & Admin only) -->
-          <div *ngIf="slots().length === 0 && !isLoading() && auth.canGenerateSlots()" class="flex items-center gap-2">
+          <!-- Manage Availability Action (Doctor & Admin) -->
+          <div class="flex items-center gap-2">
             <button 
-              (click)="generateSlots()"
-              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+              *ngIf="canManageCurrentDoctorAvailability()"
+              (click)="isManageAvailabilityOpen.set(true)"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Populate Demo Slots for this Week
+              <span>📅</span>
+              <span>Manage Availability</span>
             </button>
+
+            <span 
+              *ngIf="auth.isDoctor() && !canManageCurrentDoctorAvailability()"
+              class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1.5"
+            >
+              <span>🔒</span>
+              <span>Colleague Schedule (Read Only)</span>
+            </span>
           </div>
         </div>
 
@@ -221,7 +231,9 @@ interface DayGroup {
                 <!-- Footer / Patient Info -->
                 <div class="text-[11px] truncate">
                   <ng-container [ngSwitch]="slot.status">
-                    <span *ngSwitchCase="'Available'" class="text-emerald-700 font-medium">Click to hold</span>
+                    <span *ngSwitchCase="'Available'" class="text-emerald-700 font-medium">
+                      {{ auth.isDoctor() ? 'Open Consultation Slot' : 'Click to hold' }}
+                    </span>
                     <span *ngSwitchCase="'Held'" class="text-amber-800 font-medium flex items-center gap-1">
                       <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
                       {{ isHeldByMe(slot) ? 'Held by you' : 'In progress...' }}
@@ -260,6 +272,22 @@ interface DayGroup {
         (close)="isAppointmentDetailsOpen.set(false)"
       ></app-appointment-details-modal>
 
+      <!-- Manage Doctors Modal (Admin Only) -->
+      <app-manage-doctors-modal
+        *ngIf="isManageDoctorsOpen()"
+        [doctors]="doctors()"
+        (close)="isManageDoctorsOpen.set(false)"
+        (doctorsChanged)="loadDoctors()"
+      ></app-manage-doctors-modal>
+
+      <!-- Manage Availability Modal (Doctor & Admin) -->
+      <app-manage-availability-modal
+        *ngIf="isManageAvailabilityOpen()"
+        [doctor]="selectedDoctor()"
+        (close)="isManageAvailabilityOpen.set(false)"
+        (availabilityChanged)="onAvailabilityUpdated()"
+      ></app-manage-availability-modal>
+
       <!-- HIPAA Audit Log Drawer -->
       <app-audit-drawer 
         *ngIf="isAuditDrawerOpen()"
@@ -283,15 +311,37 @@ export class CalendarComponent implements OnInit, OnDestroy {
   public isBookingSubmitting = signal<boolean>(false);
   public isAuditDrawerOpen = signal<boolean>(false);
 
+  // Admin & Doctor Modals
+  public isManageDoctorsOpen = signal<boolean>(false);
+  public isManageAvailabilityOpen = signal<boolean>(false);
+
   // Appointment Clinical Dossier Modal (Doctor & Admin)
   public selectedAppointmentDetails = signal<AppointmentDetails | null>(null);
   public isAppointmentDetailsOpen = signal<boolean>(false);
 
-  // Real-time slot metrics (for Receptionist & Admin)
+  // Real-time slot metrics (for Admin & Clinic Overview)
   public totalSlotsCount = computed(() => this.slots().length);
   public availableSlotsCount = computed(() => this.slots().filter(s => s.status === 'Available').length);
   public heldSlotsCount = computed(() => this.slots().filter(s => s.status === 'Held').length);
   public bookedSlotsCount = computed(() => this.slots().filter(s => s.status === 'Booked').length);
+
+  public isDoctorSelf(doc: Doctor | null): boolean {
+    if (!doc || !this.auth.isDoctor()) return false;
+    const user = this.auth.currentPersona();
+    if (!user) return false;
+    return (
+      user.id.toLowerCase() === doc.id.toLowerCase() ||
+      user.name.trim().toLowerCase() === doc.name.trim().toLowerCase()
+    );
+  }
+
+  public canManageCurrentDoctorAvailability = computed(() => {
+    if (this.auth.isAdmin()) return true;
+    if (this.auth.isDoctor()) {
+      return this.isDoctorSelf(this.selectedDoctor());
+    }
+    return false;
+  });
 
   private signalRSub?: Subscription;
 
@@ -316,12 +366,29 @@ export class CalendarComponent implements OnInit, OnDestroy {
     this.schedulingService.getDoctors().subscribe({
       next: (docs) => {
         this.doctors.set(docs);
-        if (docs.length > 0 && !this.selectedDoctor()) {
+        const current = this.selectedDoctor();
+        if (current && docs.some(d => d.id === current.id)) {
+          // Current selected doctor still exists
+        } else if (this.auth.isDoctor()) {
+          // For doctors, default selection directly to their own doctor profile
+          const ownDoc = docs.find(d => this.isDoctorSelf(d));
+          this.selectDoctor(ownDoc ?? (docs.length > 0 ? docs[0] : null!));
+        } else if (docs.length > 0) {
           this.selectDoctor(docs[0]);
+        } else {
+          this.selectedDoctor.set(null);
+          this.slots.set([]);
         }
       },
       error: (err) => console.error('Failed to load doctors:', err)
     });
+  }
+
+  public onAvailabilityUpdated(): void {
+    const doc = this.selectedDoctor();
+    if (doc) {
+      this.loadSlots(doc.id);
+    }
   }
 
   public selectDoctor(doctor: Doctor): void {
@@ -410,9 +477,14 @@ export class CalendarComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // RBAC: Only Customer, Receptionist, and Admin can hold/book
+    // Clinicians strictly never book appointments
+    if (this.auth.isDoctor()) {
+      return;
+    }
+
+    // RBAC: Only Customer and Admin can hold/book
     if (!this.auth.canBook()) {
-      alert(`The '${this.auth.role()}' role is in read-only schedule view. Switch persona to Customer or Receptionist to hold and book appointments.`);
+      alert(`The '${this.auth.role()}' role is in clinical schedule management mode. Only Customers and Admins can book appointments.`);
       return;
     }
 
@@ -529,6 +601,9 @@ export class CalendarComponent implements OnInit, OnDestroy {
   public getSlotCardClasses(slot: Slot): string {
     switch (slot.status) {
       case 'Available':
+        if (this.auth.isDoctor()) {
+          return 'bg-emerald-50/40 border-emerald-200 text-emerald-900 cursor-default';
+        }
         return 'bg-emerald-50/50 hover:bg-emerald-50 border-emerald-200 text-emerald-900 cursor-pointer hover:shadow-md hover:border-emerald-300';
       case 'Held':
         return this.isHeldByMe(slot)

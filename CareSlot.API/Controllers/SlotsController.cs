@@ -28,7 +28,7 @@ public class SlotsController : ControllerBase
     /// Holds a slot temporarily for 2 minutes while user fills the booking form.
     /// Returns 409 Conflict if another user beat them to it.
     /// </summary>
-    [Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Admin}")]
     [HttpPost("{id:guid}/hold")]
     public async Task<ActionResult<SlotDto>> HoldSlot(
         Guid id,
@@ -57,7 +57,7 @@ public class SlotsController : ControllerBase
     /// <summary>
     /// Releases a held slot back to Available if the user cancels the booking dialog.
     /// </summary>
-    [Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Admin}")]
     [HttpPost("{id:guid}/release")]
     public async Task<ActionResult<SlotDto>> ReleaseSlot(
         Guid id,
@@ -82,7 +82,7 @@ public class SlotsController : ControllerBase
     /// Confirms the booking, writing patient details and encrypting PHI at rest.
     /// Returns 409 Conflict if a double-booking race condition is detected.
     /// </summary>
-    [Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Admin}")]
     [HttpPost("{id:guid}/book")]
     public async Task<ActionResult<SlotDto>> BookSlot(
         Guid id,

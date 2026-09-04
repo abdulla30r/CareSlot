@@ -25,16 +25,7 @@ public class JwtTokenService : IJwtTokenService
             "Patient123!"
         ),
         new UserPersonaDto(
-            "receptionist-elena", 
-            "Elena Vance", 
-            "receptionist@careslot.local",
-            Roles.Receptionist, 
-            "Front desk coordinator booking on behalf of clinic patients", 
-            "EV",
-            "Clinic123!"
-        ),
-        new UserPersonaDto(
-            "doctor-sarah", 
+            "11111111-1111-1111-1111-111111111111", 
             "Dr. Sarah Jenkins", 
             "doctor@careslot.local",
             Roles.Doctor, 

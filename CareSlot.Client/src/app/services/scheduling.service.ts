@@ -1,7 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Doctor, Slot, HoldSlotRequest, BookSlotRequest, AuditLog, AppointmentDetails } from '../models/schedule.models';
+import { 
+  Doctor, 
+  Slot, 
+  HoldSlotRequest, 
+  BookSlotRequest, 
+  AuditLog, 
+  AppointmentDetails,
+  CreateDoctorRequest,
+  UpdateDoctorRequest,
+  ManageAvailabilityRequest
+} from '../models/schedule.models';
 import { SignalRService } from './signalr.service';
 
 @Injectable({
@@ -16,6 +26,44 @@ export class SchedulingService {
    */
   public getDoctors(): Observable<Doctor[]> {
     return this.http.get<Doctor[]>('/api/doctors');
+  }
+
+  /**
+   * Admin: Creates a new clinician.
+   */
+  public createDoctor(data: CreateDoctorRequest): Observable<Doctor> {
+    return this.http.post<Doctor>('/api/doctors', data);
+  }
+
+  /**
+   * Admin: Updates an existing clinician.
+   */
+  public updateDoctor(id: string, data: UpdateDoctorRequest): Observable<Doctor> {
+    return this.http.put<Doctor>(`/api/doctors/${id}`, data);
+  }
+
+  /**
+   * Admin: Deletes a clinician (blocked if active booked appointments exist).
+   */
+  public deleteDoctor(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/doctors/${id}`);
+  }
+
+  /**
+   * Doctor & Admin: Configures custom shift hours, duration, and generates availability slots.
+   */
+  public configureAvailability(doctorId: string, data: ManageAvailabilityRequest): Observable<Slot[]> {
+    return this.http.post<Slot[]>(`/api/doctors/${doctorId}/availability`, data);
+  }
+
+  /**
+   * Doctor & Admin: Clears unbooked available slots for a date range (takes time off).
+   */
+  public clearUnbookedSlots(doctorId: string, startDate: string, endDate: string): Observable<{ clearedSlotsCount: number }> {
+    const params = new HttpParams()
+      .set('startDate', startDate)
+      .set('endDate', endDate);
+    return this.http.delete<{ clearedSlotsCount: number }>(`/api/doctors/${doctorId}/availability/unbooked`, { params });
   }
 
   /**

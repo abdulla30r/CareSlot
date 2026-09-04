@@ -27,5 +27,14 @@ public interface ISchedulingService
 
     // 8. Get Appointment Clinical Details (Doctor/Admin only, logs PHI_ACCESSED)
     Task<AppointmentDetailsDto> GetSlotDetailsAsync(Guid slotId, string clientIp, CancellationToken ct = default);
+
+    // 9. Manage Doctor (Admin only: CRUD operations with audit logs)
+    Task<DoctorDto> CreateDoctorAsync(CreateDoctorRequest request, string clientIp, CancellationToken ct = default);
+    Task<DoctorDto> UpdateDoctorAsync(Guid id, UpdateDoctorRequest request, string clientIp, CancellationToken ct = default);
+    Task DeleteDoctorAsync(Guid id, string clientIp, CancellationToken ct = default);
+
+    // 10. Manage Availability (Doctor & Admin: custom shifts, intervals, clearing open slots)
+    Task<List<SlotDto>> ConfigureAvailabilityAsync(Guid doctorId, ManageAvailabilityRequest request, string clientIp, CancellationToken ct = default);
+    Task<int> ClearUnbookedSlotsAsync(Guid doctorId, DateTime startDate, DateTime endDate, string clientIp, CancellationToken ct = default);
 }
 

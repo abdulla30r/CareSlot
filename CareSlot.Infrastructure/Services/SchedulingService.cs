@@ -132,7 +132,7 @@ public class SchedulingService : ISchedulingService
 
         // If held by another user and hold has NOT expired
         if (slot.Status == SlotStatus.Held && slot.HeldUntilUtc > DateTime.UtcNow && slot.HeldBy != request.ConnectionId)
-            throw new InvalidOperationException("This slot is currently being booked by another receptionist.");
+            throw new InvalidOperationException("This slot is currently being held by another user.");
 
         // Optimistic Concurrency Token check
         byte[] originalRowVersion = Convert.FromBase64String(request.RowVersion);
@@ -321,6 +321,225 @@ public class SchedulingService : ISchedulingService
             slot.EncryptedNid ?? "Not Provided",
             slot.EncryptedNotes ?? "No clinical notes attached."
         );
+    }
+
+    public async Task<DoctorDto> CreateDoctorAsync(CreateDoctorRequest request, string clientIp, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            throw new ArgumentException("Doctor name is required.", nameof(request.Name));
+        if (string.IsNullOrWhiteSpace(request.Specialty))
+            throw new ArgumentException("Doctor specialty is required.", nameof(request.Specialty));
+
+        var doctor = new Doctor
+        {
+            Id = Guid.NewGuid(),
+            Name = request.Name.Trim(),
+            Specialty = request.Specialty.Trim()
+        };
+
+        _context.Doctors.Add(doctor);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = _currentUserService.UserId ?? "admin",
+            Action = "DOCTOR_CREATED",
+            ResourceName = nameof(Doctor),
+            ResourceId = doctor.Id.ToString(),
+            IpAddress = clientIp,
+            TimestampUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Clinician '{DoctorName}' ({Specialty}) created by {User}", doctor.Name, doctor.Specialty, _currentUserService.UserId);
+
+        return new DoctorDto(doctor.Id, doctor.Name, doctor.Specialty);
+    }
+
+    public async Task<DoctorDto> UpdateDoctorAsync(Guid id, UpdateDoctorRequest request, string clientIp, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            throw new ArgumentException("Doctor name is required.", nameof(request.Name));
+        if (string.IsNullOrWhiteSpace(request.Specialty))
+            throw new ArgumentException("Doctor specialty is required.", nameof(request.Specialty));
+
+        var doctor = await _context.Doctors.FindAsync([id], ct);
+        if (doctor == null)
+            throw new KeyNotFoundException($"Clinician with ID '{id}' not found.");
+
+        doctor.Name = request.Name.Trim();
+        doctor.Specialty = request.Specialty.Trim();
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = _currentUserService.UserId ?? "admin",
+            Action = "DOCTOR_UPDATED",
+            ResourceName = nameof(Doctor),
+            ResourceId = doctor.Id.ToString(),
+            IpAddress = clientIp,
+            TimestampUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Clinician '{DoctorName}' updated by {User}", doctor.Name, _currentUserService.UserId);
+
+        return new DoctorDto(doctor.Id, doctor.Name, doctor.Specialty);
+    }
+
+    public async Task DeleteDoctorAsync(Guid id, string clientIp, CancellationToken ct = default)
+    {
+        var doctor = await _context.Doctors.FindAsync([id], ct);
+        if (doctor == null)
+            throw new KeyNotFoundException($"Clinician with ID '{id}' not found.");
+
+        // Clinical Safety Guard: Prevent deleting a doctor with confirmed patient bookings
+        var hasActiveBookings = await _context.DoctorSlots
+            .AnyAsync(s => s.DoctorId == id && s.Status == SlotStatus.Booked, ct);
+
+        if (hasActiveBookings)
+        {
+            throw new InvalidOperationException("Cannot remove clinician with active booked patient appointments. Please reassign or cancel appointments first.");
+        }
+
+        _context.Doctors.Remove(doctor);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = _currentUserService.UserId ?? "admin",
+            Action = "DOCTOR_DELETED",
+            ResourceName = nameof(Doctor),
+            ResourceId = id.ToString(),
+            IpAddress = clientIp,
+            TimestampUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Clinician '{DoctorName}' ({DoctorId}) removed by {User}", doctor.Name, id, _currentUserService.UserId);
+    }
+
+    public async Task<List<SlotDto>> ConfigureAvailabilityAsync(
+        Guid doctorId, 
+        ManageAvailabilityRequest request, 
+        string clientIp, 
+        CancellationToken ct = default)
+    {
+        var doctor = await _context.Doctors.FindAsync([doctorId], ct);
+        if (doctor == null)
+            throw new KeyNotFoundException($"Clinician with ID '{doctorId}' not found.");
+
+        if (request.StartDate > request.EndDate)
+            throw new ArgumentException("Start date cannot be after end date.");
+
+        if (request.DailyStartTime >= request.DailyEndTime)
+            throw new ArgumentException("Daily start time must be earlier than daily end time.");
+
+        var durationMinutes = request.SlotDurationMinutes > 0 ? request.SlotDurationMinutes : 30;
+
+        // Fetch existing slots in the range to avoid overlapping duplicate slots
+        var rangeStart = request.StartDate.Date.Add(request.DailyStartTime);
+        var rangeEnd = request.EndDate.Date.Add(request.DailyEndTime);
+
+        var existingSlotTimes = await _context.DoctorSlots
+            .Where(s => s.DoctorId == doctorId && s.StartTime >= rangeStart && s.StartTime <= rangeEnd)
+            .Select(s => s.StartTime)
+            .ToListAsync(ct);
+
+        var existingSet = new HashSet<DateTime>(existingSlotTimes);
+        var newSlots = new List<DoctorSlot>();
+
+        var totalDays = (request.EndDate.Date - request.StartDate.Date).Days + 1;
+
+        for (int i = 0; i < totalDays; i++)
+        {
+            var currentDay = request.StartDate.Date.AddDays(i);
+
+            if (request.SkipWeekends && (currentDay.DayOfWeek == DayOfWeek.Saturday || currentDay.DayOfWeek == DayOfWeek.Sunday))
+                continue;
+
+            var dayStart = currentDay.Add(request.DailyStartTime);
+            var dayEnd = currentDay.Add(request.DailyEndTime);
+
+            var slotStart = dayStart;
+            while (slotStart.AddMinutes(durationMinutes) <= dayEnd)
+            {
+                if (!existingSet.Contains(slotStart))
+                {
+                    newSlots.Add(new DoctorSlot
+                    {
+                        DoctorId = doctorId,
+                        StartTime = slotStart,
+                        EndTime = slotStart.AddMinutes(durationMinutes),
+                        Status = SlotStatus.Available
+                    });
+                    existingSet.Add(slotStart);
+                }
+
+                slotStart = slotStart.AddMinutes(durationMinutes);
+            }
+        }
+
+        if (newSlots.Count > 0)
+        {
+            _context.DoctorSlots.AddRange(newSlots);
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                UserId = _currentUserService.UserId ?? "clinician",
+                Action = "AVAILABILITY_CONFIGURED",
+                ResourceName = nameof(DoctorSlot),
+                ResourceId = doctorId.ToString(),
+                IpAddress = clientIp,
+                TimestampUtc = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync(ct);
+        }
+
+        return await GetDoctorSlotsAsync(doctorId, rangeStart, rangeEnd, ct);
+    }
+
+    public async Task<int> ClearUnbookedSlotsAsync(
+        Guid doctorId, 
+        DateTime startDate, 
+        DateTime endDate, 
+        string clientIp, 
+        CancellationToken ct = default)
+    {
+        var doctor = await _context.Doctors.FindAsync([doctorId], ct);
+        if (doctor == null)
+            throw new KeyNotFoundException($"Clinician with ID '{doctorId}' not found.");
+
+        // Strictly delete only AVAILABLE slots; preserve Booked and active Held slots!
+        var unbookedSlots = await _context.DoctorSlots
+            .Where(s => s.DoctorId == doctorId 
+                     && s.StartTime >= startDate 
+                     && s.StartTime <= endDate 
+                     && s.Status == SlotStatus.Available)
+            .ToListAsync(ct);
+
+        if (unbookedSlots.Count == 0)
+            return 0;
+
+        _context.DoctorSlots.RemoveRange(unbookedSlots);
+
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = _currentUserService.UserId ?? "clinician",
+            Action = "SLOTS_CLEARED",
+            ResourceName = nameof(DoctorSlot),
+            ResourceId = doctorId.ToString(),
+            IpAddress = clientIp,
+            TimestampUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Cleared {Count} unbooked slots for Dr. {DoctorName} between {Start} and {End}", 
+            unbookedSlots.Count, doctor.Name, startDate, endDate);
+
+        return unbookedSlots.Count;
     }
 }
 

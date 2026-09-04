@@ -134,8 +134,8 @@ import { AuthService, UserPersona } from '../../services/auth.service';
               </div>
             </div>
 
-            <!-- Quick 1-Click Demo Personas -->
-            <div class="mt-6 grid grid-cols-2 gap-2.5">
+            <!-- Quick 1-Click Demo Personas (3 Roles: Customer, Doctor, Admin) -->
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <!-- 1. Customer -->
               <button 
                 type="button" 
@@ -152,23 +152,7 @@ import { AuthService, UserPersona } from '../../services/auth.service';
                 <p class="text-[10px] text-slate-500 truncate">John Doe</p>
               </button>
 
-              <!-- 2. Receptionist -->
-              <button 
-                type="button" 
-                (click)="quickLogin('receptionist@careslot.local', 'Clinic123!')"
-                [disabled]="isLoading()"
-                class="p-2.5 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 hover:border-blue-300 text-left transition-all cursor-pointer"
-              >
-                <div class="flex items-center gap-2 mb-1">
-                  <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-extrabold flex items-center justify-center">
-                    EV
-                  </span>
-                  <span class="text-xs font-bold text-blue-900">Receptionist</span>
-                </div>
-                <p class="text-[10px] text-blue-700 truncate">Elena Vance</p>
-              </button>
-
-              <!-- 3. Doctor -->
+              <!-- 2. Doctor -->
               <button 
                 type="button" 
                 (click)="quickLogin('doctor@careslot.local', 'Doctor123!')"
@@ -184,7 +168,7 @@ import { AuthService, UserPersona } from '../../services/auth.service';
                 <p class="text-[10px] text-emerald-700 truncate">Dr. Sarah Jenkins</p>
               </button>
 
-              <!-- 4. Admin -->
+              <!-- 3. Admin -->
               <button 
                 type="button" 
                 (click)="quickLogin('admin@careslot.local', 'Admin123!')"
@@ -197,7 +181,7 @@ import { AuthService, UserPersona } from '../../services/auth.service';
                   </span>
                   <span class="text-xs font-bold text-slate-900">Admin</span>
                 </div>
-                <p class="text-[10px] text-slate-600 truncate">Marcus Brody (HIPAA)</p>
+                <p class="text-[10px] text-slate-600 truncate">Marcus Brody</p>
               </button>
             </div>
           </div>

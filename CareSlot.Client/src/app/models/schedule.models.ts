@@ -50,3 +50,23 @@ export interface AppointmentDetails {
   clinicalNotes: string;
 }
 
+export interface CreateDoctorRequest {
+  name: string;
+  specialty: string;
+}
+
+export interface UpdateDoctorRequest {
+  name: string;
+  specialty: string;
+}
+
+export interface ManageAvailabilityRequest {
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  dailyStartTime: string; // HH:mm:ss
+  dailyEndTime: string;   // HH:mm:ss
+  slotDurationMinutes: number;
+  skipWeekends: boolean;
+}
+
+
