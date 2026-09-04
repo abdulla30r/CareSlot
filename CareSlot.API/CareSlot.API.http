@@ -1,0 +1,6 @@
+@CareSlot.API_HostAddress = http://localhost:5232
+
+GET {{CareSlot.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,73 @@
+## =====================================
+## Visual Studio & .NET Core
+## =====================================
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.sln.docstates
+*.DotSettings.user
+TestResults/
+*.launchsettings.json.user
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+## =====================================
+## Angular & Node.js
+## =====================================
+**/node_modules/
+**/dist/
+**/tmp/
+**/out-tsc/
+**/.angular/
+**/.angular/cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+## =====================================
+## Database & Local State
+## =====================================
+*.db
+*.db-shm
+*.db-wal
+*.mdf
+*.ldf
+appsettings.Local.json
+appsettings.Secrets.json
+
+## =====================================
+## Editors & OS
+## =====================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+## =====================================
+## Documentation & Markdown Files
+## =====================================
+*.md
+

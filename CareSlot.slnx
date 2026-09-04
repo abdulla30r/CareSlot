@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="CareSlot.API/CareSlot.API.csproj" />
+    <Project Path="CareSlot.Application/CareSlot.Application.csproj" />
+    <Project Path="CareSlot.Client/CareSlot.Client.esproj">
+      <Build />
+      <Deploy />
+    </Project>
+    <Project Path="CareSlot.Domain/CareSlot.Domain.csproj" />
+    <Project Path="CareSlot.Infrastructure/CareSlot.Infrastructure.csproj" />
+  </Folder>
+</Solution>
