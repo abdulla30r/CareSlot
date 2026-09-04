@@ -285,5 +285,42 @@ public class SchedulingService : ISchedulingService
             ))
             .ToListAsync(ct);
     }
+
+    public async Task<AppointmentDetailsDto> GetSlotDetailsAsync(Guid slotId, string clientIp, CancellationToken ct = default)
+    {
+        var slot = await _context.DoctorSlots
+            .Include(s => s.Doctor)
+            .FirstOrDefaultAsync(s => s.Id == slotId, ct);
+
+        if (slot == null)
+            throw new KeyNotFoundException("Slot not found.");
+
+        if (slot.Status != SlotStatus.Booked)
+            throw new InvalidOperationException("Appointment details are only available for booked slots.");
+
+        // Record HIPAA Audit Trail: PHI Access Log
+        _context.AuditLogs.Add(new AuditLog
+        {
+            UserId = _currentUserService.UserId ?? "clinician",
+            Action = "PHI_ACCESSED",
+            ResourceName = nameof(DoctorSlot),
+            ResourceId = slot.Id.ToString(),
+            IpAddress = clientIp,
+            TimestampUtc = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync(ct);
+
+        return new AppointmentDetailsDto(
+            slot.Id,
+            slot.DoctorId,
+            slot.Doctor?.Name ?? "Attending Clinician",
+            slot.StartTime,
+            slot.EndTime,
+            slot.PatientName ?? "Confidential Patient",
+            slot.EncryptedNid ?? "Not Provided",
+            slot.EncryptedNotes ?? "No clinical notes attached."
+        );
+    }
 }
 

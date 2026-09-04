@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Doctor, Slot, HoldSlotRequest, BookSlotRequest, AuditLog } from '../models/schedule.models';
+import { Doctor, Slot, HoldSlotRequest, BookSlotRequest, AuditLog, AppointmentDetails } from '../models/schedule.models';
 import { SignalRService } from './signalr.service';
 
 @Injectable({
@@ -73,6 +73,13 @@ export class SchedulingService {
   public getAuditLogs(limit = 50): Observable<AuditLog[]> {
     const params = new HttpParams().set('limit', limit.toString());
     return this.http.get<AuditLog[]>('/api/audit-logs', { params });
+  }
+
+  /**
+   * Fetches the confidential clinical dossier (Doctor & Admin only).
+   */
+  public getSlotDetails(slotId: string): Observable<AppointmentDetails> {
+    return this.http.get<AppointmentDetails>(`/api/slots/${slotId}/details`);
   }
 }
 

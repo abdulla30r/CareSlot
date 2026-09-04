@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Slot, BookSlotRequest } from '../../models/schedule.models';
@@ -116,10 +116,11 @@ import { Slot, BookSlotRequest } from '../../models/schedule.models';
     </div>
   `
 })
-export class BookingModalComponent {
+export class BookingModalComponent implements OnInit {
   private fb = inject(FormBuilder);
 
   @Input({ required: true }) slot!: Slot;
+  @Input() defaultPatientName?: string;
   @Input() errorMessage: string | null = null;
   @Input() isSubmitting = false;
 
@@ -131,6 +132,12 @@ export class BookingModalComponent {
     nationalId: ['', [Validators.required, Validators.minLength(4)]],
     clinicalNotes: ['', [Validators.required, Validators.minLength(5)]]
   });
+
+  ngOnInit(): void {
+    if (this.defaultPatientName) {
+      this.bookingForm.patchValue({ patientName: this.defaultPatientName });
+    }
+  }
 
   public onSubmit(): void {
     if (this.bookingForm.invalid || this.isSubmitting) return;

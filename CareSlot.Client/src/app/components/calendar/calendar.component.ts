@@ -1,11 +1,12 @@
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
-import { Doctor, Slot, BookSlotRequest } from '../../models/schedule.models';
+import { Doctor, Slot, BookSlotRequest, AppointmentDetails } from '../../models/schedule.models';
 import { SchedulingService } from '../../services/scheduling.service';
 import { SignalRService } from '../../services/signalr.service';
 import { BookingModalComponent } from '../booking-modal/booking-modal.component';
 import { AuditDrawerComponent } from '../audit-drawer/audit-drawer.component';
+import { AppointmentDetailsModalComponent } from '../appointment-details-modal/appointment-details-modal.component';
 import { AuthService } from '../../services/auth.service';
 
 interface DayGroup {
@@ -16,7 +17,7 @@ interface DayGroup {
 @Component({
   selector: 'app-calendar',
   standalone: true,
-  imports: [CommonModule, BookingModalComponent, AuditDrawerComponent],
+  imports: [CommonModule, BookingModalComponent, AuditDrawerComponent, AppointmentDetailsModalComponent],
   template: `
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <!-- Top Navigation Bar -->
@@ -139,6 +140,26 @@ interface DayGroup {
           <p class="text-xs font-medium">Loading clinical schedule...</p>
         </div>
 
+        <!-- Clinic Schedule Status Bar (Receptionist & Admin Overview) -->
+        <div *ngIf="!isLoading() && slots().length > 0" class="mb-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-500">Total Slots</span>
+            <span class="text-sm font-extrabold text-slate-800">{{ totalSlotsCount() }}</span>
+          </div>
+          <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/80 shadow-sm flex items-center justify-between">
+            <span class="text-xs font-semibold text-emerald-700">Available</span>
+            <span class="text-sm font-extrabold text-emerald-700">{{ availableSlotsCount() }}</span>
+          </div>
+          <div class="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80 shadow-sm flex items-center justify-between">
+            <span class="text-xs font-semibold text-amber-800">Held (In-Progress)</span>
+            <span class="text-sm font-extrabold text-amber-800">{{ heldSlotsCount() }}</span>
+          </div>
+          <div class="bg-slate-100 p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-600">Confirmed Booked</span>
+            <span class="text-sm font-extrabold text-slate-800">{{ bookedSlotsCount() }}</span>
+          </div>
+        </div>
+
         <!-- 5-Day Weekly Grid (Monday to Friday) -->
         <div *ngIf="!isLoading()" class="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div *ngFor="let day of groupedDays()" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 flex flex-col">
@@ -184,8 +205,13 @@ interface DayGroup {
                       <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
                       {{ isHeldByMe(slot) ? 'Held by you' : 'In progress...' }}
                     </span>
-                    <span *ngSwitchCase="'Booked'" class="text-slate-500 font-medium">
-                      {{ slot.patientName ? 'Patient: ' + slot.patientName : 'Reserved' }}
+                    <span *ngSwitchCase="'Booked'" class="font-medium flex items-center justify-between">
+                      <span class="truncate" [ngClass]="isBookedByCurrentCustomer(slot) ? 'text-purple-700 font-bold' : 'text-slate-500'">
+                        {{ isBookedByCurrentCustomer(slot) ? '⭐ Your Visit' : (slot.patientName ? 'Patient: ' + slot.patientName : 'Booked') }}
+                      </span>
+                      <span *ngIf="auth.isDoctor() || auth.isAdmin()" class="shrink-0 text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded shadow-xs hover:bg-blue-200 ml-1">
+                        Dossier ↗
+                      </span>
                     </span>
                   </ng-container>
                 </div>
@@ -199,11 +225,19 @@ interface DayGroup {
       <app-booking-modal 
         *ngIf="activeHoldingSlot() as currentSlot"
         [slot]="currentSlot"
+        [defaultPatientName]="auth.isCustomer() ? (auth.currentPersona()?.name ?? '') : ''"
         [errorMessage]="bookingError()"
         [isSubmitting]="isBookingSubmitting()"
         (book)="confirmBooking($event)"
         (cancel)="cancelHold()"
       ></app-booking-modal>
+
+      <!-- Clinical Dossier Modal (Doctor & Admin) -->
+      <app-appointment-details-modal
+        *ngIf="isAppointmentDetailsOpen()"
+        [details]="selectedAppointmentDetails()"
+        (close)="isAppointmentDetailsOpen.set(false)"
+      ></app-appointment-details-modal>
 
       <!-- HIPAA Audit Log Drawer -->
       <app-audit-drawer 
@@ -227,6 +261,16 @@ export class CalendarComponent implements OnInit, OnDestroy {
   public bookingError = signal<string | null>(null);
   public isBookingSubmitting = signal<boolean>(false);
   public isAuditDrawerOpen = signal<boolean>(false);
+
+  // Appointment Clinical Dossier Modal (Doctor & Admin)
+  public selectedAppointmentDetails = signal<AppointmentDetails | null>(null);
+  public isAppointmentDetailsOpen = signal<boolean>(false);
+
+  // Real-time slot metrics (for Receptionist & Admin)
+  public totalSlotsCount = computed(() => this.slots().length);
+  public availableSlotsCount = computed(() => this.slots().filter(s => s.status === 'Available').length);
+  public heldSlotsCount = computed(() => this.slots().filter(s => s.status === 'Held').length);
+  public bookedSlotsCount = computed(() => this.slots().filter(s => s.status === 'Booked').length);
 
   private signalRSub?: Subscription;
 
@@ -333,7 +377,17 @@ export class CalendarComponent implements OnInit, OnDestroy {
    * - If Held by this user: Reopens the modal.
    */
   public onSlotClick(slot: Slot): void {
-    if (slot.status === 'Booked') return;
+    if (slot.status === 'Booked') {
+      if (this.auth.isDoctor() || this.auth.isAdmin()) {
+        this.openAppointmentDossier(slot);
+        return;
+      }
+      if (this.auth.isCustomer() && this.isBookedByCurrentCustomer(slot)) {
+        alert(`This is your confirmed appointment with ${this.selectedDoctor()?.name || 'the clinician'}.`);
+        return;
+      }
+      return;
+    }
 
     // RBAC: Only Customer, Receptionist, and Admin can hold/book
     if (!this.auth.canBook()) {
@@ -431,6 +485,26 @@ export class CalendarComponent implements OnInit, OnDestroy {
     return 'Booked';
   }
 
+  public isBookedByCurrentCustomer(slot: Slot): boolean {
+    return this.auth.isCustomer() && !!slot.patientName && slot.patientName === this.auth.currentPersona()?.name;
+  }
+
+  public openAppointmentDossier(slot: Slot): void {
+    if (!this.auth.isDoctor() && !this.auth.isAdmin()) return;
+    this.selectedAppointmentDetails.set(null);
+    this.isAppointmentDetailsOpen.set(true);
+
+    this.schedulingService.getSlotDetails(slot.id).subscribe({
+      next: (details) => {
+        this.selectedAppointmentDetails.set(details);
+      },
+      error: (err) => {
+        alert(err.error?.message || 'Could not load clinical dossier.');
+        this.isAppointmentDetailsOpen.set(false);
+      }
+    });
+  }
+
   public getSlotCardClasses(slot: Slot): string {
     switch (slot.status) {
       case 'Available':
@@ -440,6 +514,12 @@ export class CalendarComponent implements OnInit, OnDestroy {
           ? 'bg-amber-50 border-amber-300 text-amber-900 cursor-pointer shadow-sm ring-2 ring-amber-400/50'
           : 'bg-amber-50/30 border-amber-200/60 text-amber-600/70 cursor-not-allowed opacity-75';
       case 'Booked':
+        if (this.auth.isDoctor() || this.auth.isAdmin()) {
+          return 'bg-blue-50/60 hover:bg-blue-50 border-blue-200 text-blue-900 cursor-pointer hover:shadow-md hover:border-blue-300';
+        }
+        if (this.isBookedByCurrentCustomer(slot)) {
+          return 'bg-purple-50 border-purple-300 text-purple-950 cursor-pointer shadow-sm ring-2 ring-purple-400/50';
+        }
         return 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed';
     }
   }
@@ -451,6 +531,12 @@ export class CalendarComponent implements OnInit, OnDestroy {
       case 'Held':
         return this.isHeldByMe(slot) ? 'bg-amber-200 text-amber-900' : 'bg-amber-100 text-amber-700';
       case 'Booked':
+        if (this.auth.isDoctor() || this.auth.isAdmin()) {
+          return 'bg-blue-100 text-blue-800';
+        }
+        if (this.isBookedByCurrentCustomer(slot)) {
+          return 'bg-purple-100 text-purple-800 font-extrabold';
+        }
         return 'bg-slate-200 text-slate-600';
     }
   }

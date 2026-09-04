@@ -10,3 +10,4 @@ public interface ICurrentUserService
     string? Name { get; }
     bool IsAuthenticated { get; }
 }
+

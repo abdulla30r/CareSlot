@@ -17,3 +17,4 @@ public record UserPersonaDto(
     string Description, 
     string AvatarInitials
 );
+

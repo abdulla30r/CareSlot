@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace CareSlot.API.Controllers;
 
-[Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class SlotsController : ControllerBase
@@ -28,6 +28,7 @@ public class SlotsController : ControllerBase
     /// Holds a slot temporarily for 2 minutes while user fills the booking form.
     /// Returns 409 Conflict if another user beat them to it.
     /// </summary>
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
     [HttpPost("{id:guid}/hold")]
     public async Task<ActionResult<SlotDto>> HoldSlot(
         Guid id,
@@ -56,6 +57,7 @@ public class SlotsController : ControllerBase
     /// <summary>
     /// Releases a held slot back to Available if the user cancels the booking dialog.
     /// </summary>
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
     [HttpPost("{id:guid}/release")]
     public async Task<ActionResult<SlotDto>> ReleaseSlot(
         Guid id,
@@ -80,6 +82,7 @@ public class SlotsController : ControllerBase
     /// Confirms the booking, writing patient details and encrypting PHI at rest.
     /// Returns 409 Conflict if a double-booking race condition is detected.
     /// </summary>
+    [Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
     [HttpPost("{id:guid}/book")]
     public async Task<ActionResult<SlotDto>> BookSlot(
         Guid id,
@@ -102,6 +105,31 @@ public class SlotsController : ControllerBase
         {
             // HTTP 409 Conflict: Double-booking race condition caught!
             return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Returns confidential patient appointment dossier (decrypted PHI).
+    /// Strictly restricted to Doctors and Admins. Automatically records a HIPAA audit log.
+    /// </summary>
+    [Authorize(Roles = $"{Roles.Doctor},{Roles.Admin}")]
+    [HttpGet("{id:guid}/details")]
+    public async Task<ActionResult<AppointmentDetailsDto>> GetSlotDetails(Guid id, CancellationToken ct)
+    {
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+        try
+        {
+            var details = await _schedulingService.GetSlotDetailsAsync(id, clientIp, ct);
+            return Ok(details);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 }

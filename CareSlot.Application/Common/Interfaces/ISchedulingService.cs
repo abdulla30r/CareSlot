@@ -24,5 +24,8 @@ public interface ISchedulingService
 
     // 7. Get chronological HIPAA Audit Logs
     Task<List<AuditLogDto>> GetAuditLogsAsync(int limit = 50, CancellationToken ct = default);
+
+    // 8. Get Appointment Clinical Details (Doctor/Admin only, logs PHI_ACCESSED)
+    Task<AppointmentDetailsDto> GetSlotDetailsAsync(Guid slotId, string clientIp, CancellationToken ct = default);
 }
 

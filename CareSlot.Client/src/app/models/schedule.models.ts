@@ -39,3 +39,14 @@ export interface AuditLog {
   timestampUtc: string;
 }
 
+export interface AppointmentDetails {
+  slotId: string;
+  doctorId: string;
+  doctorName: string;
+  startTime: string;
+  endTime: string;
+  patientName: string;
+  nationalId: string;
+  clinicalNotes: string;
+}
+
