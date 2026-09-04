@@ -78,6 +78,17 @@ export class SchedulingService {
   }
 
   /**
+   * Doctor & Admin: Fetches confirmed booked appointments for a doctor.
+   */
+  public getDoctorAppointments(doctorId: string, startDate?: string, endDate?: string): Observable<Slot[]> {
+    let params = new HttpParams();
+    if (startDate) params = params.set('startDate', startDate);
+    if (endDate) params = params.set('endDate', endDate);
+
+    return this.http.get<Slot[]>(`/api/doctors/${doctorId}/appointments`, { params });
+  }
+
+  /**
    * Generates Monday-Friday 30-minute demo slots for a doctor.
    */
   public generateWeeklySlots(doctorId: string, weekStartDate?: string): Observable<Slot[]> {

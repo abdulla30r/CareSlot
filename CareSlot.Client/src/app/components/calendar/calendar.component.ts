@@ -107,152 +107,318 @@ interface DayGroup {
         </div>
       </header>
 
-      <!-- Doctor Selection Tabs -->
-      <div class="mb-8 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 py-1 mb-1">Select Clinician:</div>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <button 
-            *ngFor="let doc of doctors()" 
-            (click)="selectDoctor(doc)"
-            [ngClass]="selectedDoctor()?.id === doc.id 
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
-              : 'text-slate-700 hover:bg-slate-100'"
-            class="px-4 py-3 rounded-xl text-left transition-all flex flex-col justify-center cursor-pointer"
-          >
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-sm">{{ doc.name }}</span>
-              <span *ngIf="isDoctorSelf(doc)" 
-                    class="text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase"
-                    [ngClass]="selectedDoctor()?.id === doc.id ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'">
-                You
-              </span>
-              <span *ngIf="auth.isDoctor() && !isDoctorSelf(doc)" class="text-[10px] px-1.5 py-0.5 rounded text-slate-400 font-medium">
-                Read Only
-              </span>
+      <!-- ================================================================= -->
+      <!-- 1. DOCTOR VIEW: My Appointments & Button to Manage Availability   -->
+      <!-- ================================================================= -->
+      <section *ngIf="auth.isDoctor()" class="space-y-6">
+        <!-- Doctor Command Banner -->
+        <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-700/50 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-3xl shadow-inner shrink-0">
+              👨‍⚕️
             </div>
-            <span class="text-xs opacity-80">{{ doc.specialty }}</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Main Schedule Area -->
-      <main *ngIf="selectedDoctor() as doctor">
-        <!-- Calendar Action Header -->
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 class="text-lg font-bold text-slate-800">Weekly Schedule — {{ doctor.name }}</h2>
-            <p class="text-xs text-slate-500">Slots are locked for 2 minutes upon selection to prevent double-booking.</p>
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <h2 class="text-2xl font-extrabold text-white tracking-tight">{{ selectedDoctor()?.name || auth.currentPersona()?.name }}</h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Attending Clinician
+                </span>
+              </div>
+              <p class="text-sm text-slate-300 flex items-center gap-2">
+                <span>🩺 {{ selectedDoctor()?.specialty || 'Cardiology' }}</span>
+                <span class="text-slate-500">•</span>
+                <span class="text-emerald-400 font-medium">HIPAA Protected Records</span>
+              </p>
+            </div>
           </div>
 
-          <!-- Manage Availability Action (Doctor & Admin) -->
-          <div class="flex items-center gap-2">
+          <!-- Button to Manage Availability -->
+          <div class="flex items-center gap-3">
             <button 
-              *ngIf="canManageCurrentDoctorAvailability()"
+              type="button"
               (click)="isManageAvailabilityOpen.set(true)"
-              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              class="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-sm font-bold rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center gap-2 cursor-pointer"
             >
-              <span>📅</span>
+              <span class="text-base">📅</span>
               <span>Manage Availability</span>
             </button>
-
-            <span 
-              *ngIf="auth.isDoctor() && !canManageCurrentDoctorAvailability()"
-              class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200 flex items-center gap-1.5"
-            >
-              <span>🔒</span>
-              <span>Colleague Schedule (Read Only)</span>
-            </span>
           </div>
         </div>
 
-        <!-- Loading State -->
-        <div *ngIf="isLoading()" class="py-20 flex flex-col items-center justify-center text-slate-400">
-          <div class="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
-          <p class="text-xs font-medium">Loading clinical schedule...</p>
+        <!-- Summary Metric Cards for Doctor -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Booked Visits</span>
+              <div class="text-2xl font-black text-slate-900 mt-1">{{ doctorAppointments().length }}</div>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+              📋
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Visits</span>
+              <div class="text-2xl font-black text-emerald-600 mt-1">{{ todayAppointmentsCount() }}</div>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+              🩺
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+              <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Upcoming Visits</span>
+              <div class="text-2xl font-black text-purple-600 mt-1">{{ upcomingAppointmentsCount() }}</div>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-xl">
+              ⏳
+            </div>
+          </div>
         </div>
 
-        <!-- Clinic Schedule Status Bar (Receptionist & Admin Overview) -->
-        <div *ngIf="!isLoading() && slots().length > 0" class="mb-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-500">Total Slots</span>
-            <span class="text-sm font-extrabold text-slate-800">{{ totalSlotsCount() }}</span>
-          </div>
-          <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/80 shadow-sm flex items-center justify-between">
-            <span class="text-xs font-semibold text-emerald-700">Available</span>
-            <span class="text-sm font-extrabold text-emerald-700">{{ availableSlotsCount() }}</span>
-          </div>
-          <div class="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80 shadow-sm flex items-center justify-between">
-            <span class="text-xs font-semibold text-amber-800">Held (In-Progress)</span>
-            <span class="text-sm font-extrabold text-amber-800">{{ heldSlotsCount() }}</span>
-          </div>
-          <div class="bg-slate-100 p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-600">Confirmed Booked</span>
-            <span class="text-sm font-extrabold text-slate-800">{{ bookedSlotsCount() }}</span>
-          </div>
-        </div>
-
-        <!-- 5-Day Weekly Grid (Monday to Friday) -->
-        <div *ngIf="!isLoading()" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div *ngFor="let day of groupedDays()" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 flex flex-col">
-            <!-- Day Header -->
-            <div class="text-center pb-3 mb-3 border-b border-slate-100">
-              <span class="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                {{ day.date | date:'EEE' }}
-              </span>
-              <span class="text-sm font-extrabold text-slate-800">
-                {{ day.date | date:'MMM d' }}
-              </span>
+        <!-- Appointments Section -->
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 mb-6">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">My Appointments</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Patient consultations and confidential clinical dossiers.</p>
             </div>
 
-            <!-- Day Slots List -->
-            <div class="space-y-2.5 flex-1">
-              <div *ngIf="day.slots.length === 0" class="text-center py-6 text-xs text-slate-400 italic">
-                No slots
-              </div>
-
-              <!-- Individual Slot Card -->
-              <div 
-                *ngFor="let slot of day.slots"
-                (click)="onSlotClick(slot)"
-                [ngClass]="getSlotCardClasses(slot)"
-                class="p-3 rounded-xl border text-left transition-all select-none"
+            <!-- Quick Filter -->
+            <div class="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+              <button 
+                type="button"
+                (click)="doctorFilter.set('all')"
+                [class]="doctorFilter() === 'all' ? 'bg-white text-slate-900 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-900'"
+                class="px-3 py-1.5 rounded-lg transition-all cursor-pointer"
               >
-                <!-- Time Range -->
-                <div class="flex items-center justify-between mb-1">
-                  <span class="text-xs font-bold font-mono">
-                    {{ slot.startTime | date:'shortTime' }}
-                  </span>
-                  <!-- Status Pill -->
-                  <span [ngClass]="getSlotBadgeClasses(slot)" class="text-[10px] font-bold px-1.5 py-0.5 rounded-md">
-                    {{ getSlotStatusLabel(slot) }}
-                  </span>
-                </div>
+                All ({{ doctorAppointments().length }})
+              </button>
+              <button 
+                type="button"
+                (click)="doctorFilter.set('today')"
+                [class]="doctorFilter() === 'today' ? 'bg-white text-emerald-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-900'"
+                class="px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+              >
+                Today ({{ todayAppointmentsCount() }})
+              </button>
+              <button 
+                type="button"
+                (click)="doctorFilter.set('upcoming')"
+                [class]="doctorFilter() === 'upcoming' ? 'bg-white text-purple-700 font-bold shadow-xs' : 'text-slate-500 hover:text-slate-900'"
+                class="px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+              >
+                Upcoming ({{ upcomingAppointmentsCount() }})
+              </button>
+            </div>
+          </div>
 
-                <!-- Footer / Patient Info -->
-                <div class="text-[11px] truncate">
-                  <ng-container [ngSwitch]="slot.status">
-                    <span *ngSwitchCase="'Available'" class="text-emerald-700 font-medium">
-                      {{ auth.isDoctor() ? 'Open Consultation Slot' : 'Click to hold' }}
-                    </span>
-                    <span *ngSwitchCase="'Held'" class="text-amber-800 font-medium flex items-center gap-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                      {{ isHeldByMe(slot) ? 'Held by you' : 'In progress...' }}
-                    </span>
-                    <span *ngSwitchCase="'Booked'" class="font-medium flex items-center justify-between">
-                      <span class="truncate" [ngClass]="isBookedByCurrentCustomer(slot) ? 'text-purple-700 font-bold' : 'text-slate-500'">
-                        {{ isBookedByCurrentCustomer(slot) ? '⭐ Your Visit' : (slot.patientName ? 'Patient: ' + slot.patientName : 'Booked') }}
-                      </span>
-                      <span *ngIf="auth.isDoctor() || auth.isAdmin()" class="shrink-0 text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded shadow-xs hover:bg-blue-200 ml-1">
-                        Dossier ↗
-                      </span>
-                    </span>
-                  </ng-container>
+          <!-- Loading State -->
+          <div *ngIf="isLoading()" class="py-16 text-center text-slate-400">
+            <div class="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p class="text-xs font-medium">Loading clinical appointments...</p>
+          </div>
+
+          <!-- Empty State -->
+          <div *ngIf="!isLoading() && filteredDoctorAppointments().length === 0" class="py-16 text-center">
+            <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-2xl mx-auto mb-3">
+              📅
+            </div>
+            <h4 class="text-sm font-bold text-slate-800 mb-1">No Appointments Found</h4>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto mb-4">
+              {{ doctorFilter() === 'today' ? 'You have no patient consultations scheduled for today.' : 'There are currently no patient bookings matching this view. Patients will appear here once they reserve an open slot.' }}
+            </p>
+            <button 
+              type="button"
+              (click)="isManageAvailabilityOpen.set(true)"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+            >
+              <span>📅 Manage Working Hours & Slots</span>
+            </button>
+          </div>
+
+          <!-- Appointments Cards List -->
+          <div *ngIf="!isLoading() && filteredDoctorAppointments().length > 0" class="space-y-3">
+            <div 
+              *ngFor="let appt of filteredDoctorAppointments()"
+              class="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-blue-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            >
+              <div class="flex items-start sm:items-center gap-4">
+                <!-- Patient Avatar Initial -->
+                <div class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-800 font-extrabold text-base flex items-center justify-center shrink-0 border border-blue-200/80 shadow-xs">
+                  {{ getPatientInitials(appt.patientName) }}
                 </div>
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <h4 class="text-base font-extrabold text-slate-900">{{ appt.patientName || 'Anonymous Patient' }}</h4>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Confirmed
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <span class="flex items-center gap-1 font-medium text-slate-700">
+                      <span>🗓️</span>
+                      <span>{{ appt.startTime | date:'fullDate' }}</span>
+                    </span>
+                    <span>•</span>
+                    <span class="flex items-center gap-1 font-mono font-bold text-blue-700">
+                      <span>⏰</span>
+                      <span>{{ appt.startTime | date:'shortTime' }} - {{ appt.endTime | date:'shortTime' }}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action: Open Clinical Dossier -->
+              <div class="flex items-center gap-2 self-end sm:self-center">
+                <button 
+                  type="button"
+                  (click)="openAppointmentDossier(appt)"
+                  class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>📋</span>
+                  <span>View Clinical Dossier</span>
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </main>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- 2. CUSTOMER & ADMIN VIEW: Weekly Booking Grid & Doctor Selector           -->
+      <!-- ========================================================================= -->
+      <section *ngIf="!auth.isDoctor()">
+        <!-- Doctor Selection Tabs -->
+        <div class="mb-8 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-bold text-slate-400 uppercase tracking-wider px-3 py-1 mb-1">Select Clinician:</div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button 
+              *ngFor="let doc of doctors()" 
+              (click)="selectDoctor(doc)"
+              [ngClass]="selectedDoctor()?.id === doc.id 
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
+                : 'text-slate-700 hover:bg-slate-100'"
+              class="px-4 py-3 rounded-xl text-left transition-all flex flex-col justify-center cursor-pointer"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sm">{{ doc.name }}</span>
+              </div>
+              <span class="text-xs opacity-80">{{ doc.specialty }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Main Schedule Area -->
+        <main *ngIf="selectedDoctor() as doctor">
+          <!-- Calendar Action Header -->
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-800">Weekly Schedule — {{ doctor.name }}</h2>
+              <p class="text-xs text-slate-500">Slots are locked for 2 minutes upon selection to prevent double-booking.</p>
+            </div>
+
+            <!-- Manage Availability Action (Admin only) -->
+            <div *ngIf="auth.isAdmin()" class="flex items-center gap-2">
+              <button 
+                (click)="isManageAvailabilityOpen.set(true)"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>📅</span>
+                <span>Manage Availability</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Loading State -->
+          <div *ngIf="isLoading()" class="py-20 flex flex-col items-center justify-center text-slate-400">
+            <div class="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p class="text-xs font-medium">Loading clinical schedule...</p>
+          </div>
+
+          <!-- Clinic Schedule Status Bar (Customer & Admin Overview) -->
+          <div *ngIf="!isLoading() && slots().length > 0" class="mb-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-500">Total Slots</span>
+              <span class="text-sm font-extrabold text-slate-800">{{ totalSlotsCount() }}</span>
+            </div>
+            <div class="bg-emerald-50/70 p-3 rounded-xl border border-emerald-200/80 shadow-sm flex items-center justify-between">
+              <span class="text-xs font-semibold text-emerald-700">Available</span>
+              <span class="text-sm font-extrabold text-emerald-700">{{ availableSlotsCount() }}</span>
+            </div>
+            <div class="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80 shadow-sm flex items-center justify-between">
+              <span class="text-xs font-semibold text-amber-800">Held (In-Progress)</span>
+              <span class="text-sm font-extrabold text-amber-800">{{ heldSlotsCount() }}</span>
+            </div>
+            <div class="bg-slate-100 p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600">Confirmed Booked</span>
+              <span class="text-sm font-extrabold text-slate-800">{{ bookedSlotsCount() }}</span>
+            </div>
+          </div>
+
+          <!-- 5-Day Weekly Grid (Monday to Friday) -->
+          <div *ngIf="!isLoading()" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div *ngFor="let day of groupedDays()" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 flex flex-col">
+              <!-- Day Header -->
+              <div class="text-center pb-3 mb-3 border-b border-slate-100">
+                <span class="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  {{ day.date | date:'EEE' }}
+                </span>
+                <span class="text-sm font-extrabold text-slate-800">
+                  {{ day.date | date:'MMM d' }}
+                </span>
+              </div>
+
+              <!-- Day Slots List -->
+              <div class="space-y-2.5 flex-1">
+                <div *ngIf="day.slots.length === 0" class="text-center py-6 text-xs text-slate-400 italic">
+                  No slots
+                </div>
+
+                <!-- Individual Slot Card -->
+                <div 
+                  *ngFor="let slot of day.slots"
+                  (click)="onSlotClick(slot)"
+                  [ngClass]="getSlotCardClasses(slot)"
+                  class="p-3 rounded-xl border text-left transition-all select-none"
+                >
+                  <!-- Time Range -->
+                  <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold font-mono">
+                      {{ slot.startTime | date:'shortTime' }}
+                    </span>
+                    <!-- Status Pill -->
+                    <span [ngClass]="getSlotBadgeClasses(slot)" class="text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                      {{ getSlotStatusLabel(slot) }}
+                    </span>
+                  </div>
+
+                  <!-- Footer / Patient Info -->
+                  <div class="text-[11px] truncate">
+                    <ng-container [ngSwitch]="slot.status">
+                      <span *ngSwitchCase="'Available'" class="text-emerald-700 font-medium">Click to hold</span>
+                      <span *ngSwitchCase="'Held'" class="text-amber-800 font-medium flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                        {{ isHeldByMe(slot) ? 'Held by you' : 'In progress...' }}
+                      </span>
+                      <span *ngSwitchCase="'Booked'" class="font-medium flex items-center justify-between">
+                        <span class="truncate" [ngClass]="isBookedByCurrentCustomer(slot) ? 'text-purple-700 font-bold' : 'text-slate-500'">
+                          {{ isBookedByCurrentCustomer(slot) ? '⭐ Your Visit' : (slot.patientName ? 'Patient: ' + slot.patientName : 'Booked') }}
+                        </span>
+                        <span *ngIf="auth.isAdmin()" class="shrink-0 text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded shadow-xs hover:bg-blue-200 ml-1">
+                          Dossier ↗
+                        </span>
+                      </span>
+                    </ng-container>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </section>
 
       <!-- Booking Dialog Modal -->
       <app-booking-modal 
@@ -324,6 +490,42 @@ export class CalendarComponent implements OnInit, OnDestroy {
   public availableSlotsCount = computed(() => this.slots().filter(s => s.status === 'Available').length);
   public heldSlotsCount = computed(() => this.slots().filter(s => s.status === 'Held').length);
   public bookedSlotsCount = computed(() => this.slots().filter(s => s.status === 'Booked').length);
+
+  // Doctor Appointments View signals
+  public doctorAppointments = signal<Slot[]>([]);
+  public doctorFilter = signal<'all' | 'today' | 'upcoming'>('all');
+
+  public todayAppointmentsCount = computed(() => {
+    const todayStr = new Date().toISOString().substring(0, 10);
+    return this.doctorAppointments().filter(a => a.startTime.substring(0, 10) === todayStr).length;
+  });
+
+  public upcomingAppointmentsCount = computed(() => {
+    const nowIso = new Date().toISOString();
+    return this.doctorAppointments().filter(a => a.startTime >= nowIso).length;
+  });
+
+  public filteredDoctorAppointments = computed(() => {
+    const filter = this.doctorFilter();
+    const appts = this.doctorAppointments();
+    const nowIso = new Date().toISOString();
+    const todayStr = nowIso.substring(0, 10);
+
+    if (filter === 'today') {
+      return appts.filter(a => a.startTime.substring(0, 10) === todayStr);
+    }
+    if (filter === 'upcoming') {
+      return appts.filter(a => a.startTime >= nowIso);
+    }
+    return appts;
+  });
+
+  public getPatientInitials(name: string | null | undefined): string {
+    if (!name) return 'PT';
+    const parts = name.trim().split(' ').filter(Boolean);
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
 
   public isDoctorSelf(doc: Doctor | null): boolean {
     if (!doc || !this.auth.isDoctor()) return false;
@@ -404,16 +606,30 @@ export class CalendarComponent implements OnInit, OnDestroy {
 
   public loadSlots(doctorId: string): void {
     this.isLoading.set(true);
-    this.schedulingService.getSlots(doctorId).subscribe({
-      next: (slotList) => {
-        this.slots.set(slotList);
-        this.isLoading.set(false);
-      },
-      error: (err) => {
-        console.error('Failed to load slots:', err);
-        this.isLoading.set(false);
-      }
-    });
+    if (this.auth.isDoctor()) {
+      this.schedulingService.getDoctorAppointments(doctorId).subscribe({
+        next: (appointments) => {
+          this.doctorAppointments.set(appointments);
+          this.slots.set(appointments);
+          this.isLoading.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to load doctor appointments:', err);
+          this.isLoading.set(false);
+        }
+      });
+    } else {
+      this.schedulingService.getSlots(doctorId).subscribe({
+        next: (slotList) => {
+          this.slots.set(slotList);
+          this.isLoading.set(false);
+        },
+        error: (err) => {
+          console.error('Failed to load slots:', err);
+          this.isLoading.set(false);
+        }
+      });
+    }
   }
 
   public generateSlots(): void {
@@ -549,6 +765,24 @@ export class CalendarComponent implements OnInit, OnDestroy {
 
   private handleRealtimeSlotUpdate(updatedSlot: Slot): void {
     this.updateLocalSlot(updatedSlot);
+
+    if (this.auth.isDoctor()) {
+      const doc = this.selectedDoctor();
+      if (doc && updatedSlot.doctorId === doc.id) {
+        const appts = [...this.doctorAppointments()];
+        const idx = appts.findIndex(a => a.id === updatedSlot.id);
+        if (updatedSlot.status === 'Booked') {
+          if (idx !== -1) {
+            appts[idx] = updatedSlot;
+          } else {
+            appts.push(updatedSlot);
+          }
+        } else if (idx !== -1) {
+          appts.splice(idx, 1);
+        }
+        this.doctorAppointments.set(appts.sort((a, b) => a.startTime.localeCompare(b.startTime)));
+      }
+    }
 
     // If the slot currently open in the modal was booked or taken by someone else:
     const current = this.activeHoldingSlot();

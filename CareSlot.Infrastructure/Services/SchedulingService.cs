@@ -70,6 +70,25 @@ public class SchedulingService : ISchedulingService
             .ToListAsync(ct);
     }
 
+    public async Task<List<SlotDto>> GetDoctorAppointmentsAsync(Guid doctorId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+    {
+        return await _context.DoctorSlots
+            .AsNoTracking()
+            .Where(s => s.DoctorId == doctorId && s.Status == SlotStatus.Booked && s.StartTime >= startDate && s.StartTime <= endDate)
+            .OrderBy(s => s.StartTime)
+            .Select(s => new SlotDto(
+                s.Id,
+                s.DoctorId,
+                s.StartTime,
+                s.EndTime,
+                s.Status.ToString(),
+                Convert.ToBase64String(s.RowVersion),
+                s.HeldBy,
+                s.PatientName
+            ))
+            .ToListAsync(ct);
+    }
+
     public async Task<List<SlotDto>> GenerateWeeklySlotsAsync(Guid doctorId, DateTime weekStartDate, CancellationToken ct = default)
     {
         var doctor = await _context.Doctors.FindAsync([doctorId], ct);

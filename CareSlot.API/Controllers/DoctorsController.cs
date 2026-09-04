@@ -51,6 +51,30 @@ public class DoctorsController : ControllerBase
     }
 
     /// <summary>
+    /// Returns confirmed booked appointments for a doctor.
+    /// Restricted to the Doctor herself or Admin.
+    /// </summary>
+    [Authorize(Roles = $"{Roles.Doctor},{Roles.Admin}")]
+    [HttpGet("{id:guid}/appointments")]
+    public async Task<ActionResult<List<SlotDto>>> GetAppointments(
+        Guid id,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        CancellationToken ct)
+    {
+        if (!await CanManageDoctorScheduleAsync(id, ct))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "Access Denied: Clinicians are strictly authorized to view only their own appointments." });
+        }
+
+        var start = startDate ?? DateTime.UtcNow.Date.AddDays(-30);
+        var end = endDate ?? DateTime.UtcNow.Date.AddDays(90);
+
+        var appointments = await _schedulingService.GetDoctorAppointmentsAsync(id, start, end, ct);
+        return Ok(appointments);
+    }
+
+    /// <summary>
     /// Helper endpoint to generate Monday-Friday 30-min slots for testing.
     /// Restricted to Doctors and Admins.
     /// </summary>

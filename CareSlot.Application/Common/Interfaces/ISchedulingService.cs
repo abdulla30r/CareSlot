@@ -10,6 +10,9 @@ public interface ISchedulingService
     // 2. Get schedule slots for a doctor in a date range (handles expired holds automatically)
     Task<List<SlotDto>> GetDoctorSlotsAsync(Guid doctorId, DateTime startDate, DateTime endDate, CancellationToken ct = default);
 
+    // 2b. Get confirmed booked appointments for a doctor
+    Task<List<SlotDto>> GetDoctorAppointmentsAsync(Guid doctorId, DateTime startDate, DateTime endDate, CancellationToken ct = default);
+
     // 3. Helper to generate realistic 30-min slots for testing the calendar
     Task<List<SlotDto>> GenerateWeeklySlotsAsync(Guid doctorId, DateTime weekStartDate, CancellationToken ct = default);
 
