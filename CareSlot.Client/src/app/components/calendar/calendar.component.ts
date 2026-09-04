@@ -6,6 +6,7 @@ import { SchedulingService } from '../../services/scheduling.service';
 import { SignalRService } from '../../services/signalr.service';
 import { BookingModalComponent } from '../booking-modal/booking-modal.component';
 import { AuditDrawerComponent } from '../audit-drawer/audit-drawer.component';
+import { AuthService } from '../../services/auth.service';
 
 interface DayGroup {
   date: Date;
@@ -36,12 +37,14 @@ interface DayGroup {
 
         <!-- Real-Time SignalR Connection Status & Audit Log Button -->
         <div class="flex items-center gap-3">
+          <!-- Audit Trail visible ONLY to Admin -->
           <button 
+            *ngIf="auth.canViewAuditLogs()"
             (click)="isAuditDrawerOpen.set(true)"
             class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition-all"
           >
             <span>🛡️</span>
-            <span>HIPAA Audit Trail</span>
+            <span>HIPAA Audit Trail (Admin)</span>
           </button>
 
           <div class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
@@ -54,6 +57,40 @@ interface DayGroup {
           </div>
         </div>
       </header>
+
+      <!-- RBAC Persona Quick-Switcher Banner -->
+      <div class="mb-6 bg-slate-900 text-white p-4 rounded-2xl shadow-lg border border-slate-800">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Active Role & Persona:</span>
+              <span class="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-0.5 rounded-full font-bold">
+                {{ auth.currentPersona()?.role || 'Guest' }}
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-1">
+              {{ auth.currentPersona()?.description }}
+            </p>
+          </div>
+
+          <!-- 4 Roles: Customer, Receptionist, Doctor, Admin -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button 
+              *ngFor="let p of auth.personas()" 
+              (click)="auth.switchPersona(p.id)"
+              [ngClass]="auth.currentPersona()?.id === p.id 
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-400 font-bold' 
+                : 'bg-slate-800 text-slate-300 hover:bg-slate-700 font-medium'"
+              class="px-3 py-1.5 rounded-xl text-xs transition-all flex items-center gap-1.5"
+            >
+              <span class="w-5 h-5 rounded-full bg-black/30 flex items-center justify-center text-[10px] font-bold">
+                {{ p.avatarInitials }}
+              </span>
+              <span>{{ p.name }} ({{ p.role }})</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- Doctor Selection Tabs -->
       <div class="mb-8 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
@@ -82,8 +119,8 @@ interface DayGroup {
             <p class="text-xs text-slate-500">Slots are locked for 2 minutes upon selection to prevent double-booking.</p>
           </div>
 
-          <!-- Helper: Generate slots if empty -->
-          <div *ngIf="slots().length === 0 && !isLoading()" class="flex items-center gap-2">
+          <!-- Helper: Generate slots if empty (Doctor & Admin only) -->
+          <div *ngIf="slots().length === 0 && !isLoading() && auth.canGenerateSlots()" class="flex items-center gap-2">
             <button 
               (click)="generateSlots()"
               class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
@@ -160,10 +197,10 @@ interface DayGroup {
 
       <!-- Booking Dialog Modal -->
       <app-booking-modal 
-        *ngIf="activeHoldingSlot"
-        [slot]="activeHoldingSlot"
-        [errorMessage]="bookingError"
-        [isSubmitting]="isBookingSubmitting"
+        *ngIf="activeHoldingSlot() as currentSlot"
+        [slot]="currentSlot"
+        [errorMessage]="bookingError()"
+        [isSubmitting]="isBookingSubmitting()"
         (book)="confirmBooking($event)"
         (cancel)="cancelHold()"
       ></app-booking-modal>
@@ -179,15 +216,16 @@ interface DayGroup {
 export class CalendarComponent implements OnInit, OnDestroy {
   public schedulingService = inject(SchedulingService);
   public signalR = inject(SignalRService);
+  public auth = inject(AuthService);
 
   public doctors = signal<Doctor[]>([]);
   public selectedDoctor = signal<Doctor | null>(null);
   public slots = signal<Slot[]>([]);
   public isLoading = signal<boolean>(false);
 
-  public activeHoldingSlot: Slot | null = null;
-  public bookingError: string | null = null;
-  public isBookingSubmitting = false;
+  public activeHoldingSlot = signal<Slot | null>(null);
+  public bookingError = signal<string | null>(null);
+  public isBookingSubmitting = signal<boolean>(false);
   public isAuditDrawerOpen = signal<boolean>(false);
 
   private signalRSub?: Subscription;
@@ -297,13 +335,19 @@ export class CalendarComponent implements OnInit, OnDestroy {
   public onSlotClick(slot: Slot): void {
     if (slot.status === 'Booked') return;
 
+    // RBAC: Only Customer, Receptionist, and Admin can hold/book
+    if (!this.auth.canBook()) {
+      alert(`The '${this.auth.role()}' role is in read-only schedule view. Switch persona to Customer or Receptionist to hold and book appointments.`);
+      return;
+    }
+
     // If held by another user, cannot interact
     if (slot.status === 'Held' && !this.isHeldByMe(slot)) return;
 
     // If already held by me, open modal directly
     if (slot.status === 'Held' && this.isHeldByMe(slot)) {
-      this.bookingError = null;
-      this.activeHoldingSlot = slot;
+      this.bookingError.set(null);
+      this.activeHoldingSlot.set(slot);
       return;
     }
 
@@ -311,8 +355,8 @@ export class CalendarComponent implements OnInit, OnDestroy {
     this.schedulingService.holdSlot(slot.id, slot.rowVersion).subscribe({
       next: (heldSlot) => {
         this.updateLocalSlot(heldSlot);
-        this.bookingError = null;
-        this.activeHoldingSlot = heldSlot;
+        this.bookingError.set(null);
+        this.activeHoldingSlot.set(heldSlot);
       },
       error: (err) => {
         const msg = err.error?.message || 'Could not hold slot. Please refresh.';
@@ -322,29 +366,31 @@ export class CalendarComponent implements OnInit, OnDestroy {
   }
 
   public confirmBooking(request: BookSlotRequest): void {
-    if (!this.activeHoldingSlot) return;
+    const current = this.activeHoldingSlot();
+    if (!current) return;
 
-    this.isBookingSubmitting = true;
-    this.bookingError = null;
+    this.isBookingSubmitting.set(true);
+    this.bookingError.set(null);
 
-    this.schedulingService.bookSlot(this.activeHoldingSlot.id, request).subscribe({
+    this.schedulingService.bookSlot(current.id, request).subscribe({
       next: (bookedSlot) => {
         this.updateLocalSlot(bookedSlot);
-        this.isBookingSubmitting = false;
-        this.activeHoldingSlot = null;
+        this.isBookingSubmitting.set(false);
+        this.activeHoldingSlot.set(null);
       },
       error: (err) => {
-        this.isBookingSubmitting = false;
-        this.bookingError = err.error?.message || 'Booking failed. Another user may have modified this slot.';
+        this.isBookingSubmitting.set(false);
+        this.bookingError.set(err.error?.message || 'Booking failed. Another user may have modified this slot.');
       }
     });
   }
 
   public cancelHold(): void {
-    if (!this.activeHoldingSlot) return;
+    const current = this.activeHoldingSlot();
+    if (!current) return;
 
-    const slotId = this.activeHoldingSlot.id;
-    this.activeHoldingSlot = null;
+    const slotId = current.id;
+    this.activeHoldingSlot.set(null);
 
     this.schedulingService.releaseSlot(slotId).subscribe({
       next: (releasedSlot) => {
@@ -358,9 +404,10 @@ export class CalendarComponent implements OnInit, OnDestroy {
     this.updateLocalSlot(updatedSlot);
 
     // If the slot currently open in the modal was booked or taken by someone else:
-    if (this.activeHoldingSlot && this.activeHoldingSlot.id === updatedSlot.id) {
+    const current = this.activeHoldingSlot();
+    if (current && current.id === updatedSlot.id) {
       if (updatedSlot.status === 'Booked' || (updatedSlot.status === 'Held' && !this.isHeldByMe(updatedSlot))) {
-        this.bookingError = 'Alert: This slot was just booked or locked by another receptionist!';
+        this.bookingError.set('Alert: This slot was just booked or locked by another receptionist!');
       }
     }
   }

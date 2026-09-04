@@ -1,9 +1,12 @@
 using CareSlot.Application.Common.Interfaces;
+using CareSlot.Application.Common.Security;
 using CareSlot.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CareSlot.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class DoctorsController : ControllerBase
@@ -45,7 +48,9 @@ public class DoctorsController : ControllerBase
 
     /// <summary>
     /// Helper endpoint to generate Monday-Friday 30-min slots for testing.
+    /// Restricted to Doctors and Admins.
     /// </summary>
+    [Authorize(Roles = $"{Roles.Doctor},{Roles.Admin}")]
     [HttpPost("{id:guid}/slots/generate")]
     public async Task<ActionResult<List<SlotDto>>> GenerateSlots(
         Guid id,

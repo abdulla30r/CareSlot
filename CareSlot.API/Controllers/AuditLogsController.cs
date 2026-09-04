@@ -1,9 +1,12 @@
 using CareSlot.Application.Common.Interfaces;
+using CareSlot.Application.Common.Security;
 using CareSlot.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CareSlot.API.Controllers;
 
+[Authorize(Roles = Roles.Admin)]
 [ApiController]
 [Route("api/audit-logs")]
 public class AuditLogsController : ControllerBase

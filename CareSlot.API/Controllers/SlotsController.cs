@@ -1,11 +1,14 @@
 using CareSlot.API.Hubs;
 using CareSlot.Application.Common.Interfaces;
+using CareSlot.Application.Common.Security;
 using CareSlot.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 
 namespace CareSlot.API.Controllers;
 
+[Authorize(Roles = $"{Roles.Customer},{Roles.Receptionist},{Roles.Admin}")]
 [ApiController]
 [Route("api/[controller]")]
 public class SlotsController : ControllerBase

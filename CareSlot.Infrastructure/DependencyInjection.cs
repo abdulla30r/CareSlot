@@ -22,7 +22,12 @@ public static class DependencyInjection
         services.AddDbContext<CareSlotDbContext>(options =>
             options.UseSqlServer(connectionString));
 
-        // 3. Register Scheduling Service
+        // 3. Register Security, RBAC & Current User Context
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddSingleton<IJwtTokenService, JwtTokenService>();
+
+        // 4. Register Scheduling Service
         services.AddScoped<ISchedulingService, SchedulingService>();
 
         return services;

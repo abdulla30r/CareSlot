@@ -74,7 +74,7 @@
           },
           "defaultConfiguration": "development",
           "options": {
-            "port": 56577,
+            "port": 4200,
             "proxyConfig": "proxy.conf.json"
           }
         },

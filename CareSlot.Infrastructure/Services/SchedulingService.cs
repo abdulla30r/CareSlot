@@ -12,11 +12,16 @@ public class SchedulingService : ISchedulingService
 {
     private readonly CareSlotDbContext _context;
     private readonly ILogger<SchedulingService> _logger;
+    private readonly ICurrentUserService _currentUserService;
 
-    public SchedulingService(CareSlotDbContext context, ILogger<SchedulingService> logger)
+    public SchedulingService(
+        CareSlotDbContext context, 
+        ILogger<SchedulingService> logger,
+        ICurrentUserService currentUserService)
     {
         _context = context;
         _logger = logger;
+        _currentUserService = currentUserService;
     }
 
     public async Task<List<DoctorDto>> GetDoctorsAsync(CancellationToken ct = default)
@@ -141,7 +146,7 @@ public class SchedulingService : ISchedulingService
         // Record HIPAA Audit Trail
         _context.AuditLogs.Add(new AuditLog
         {
-            UserId = request.ConnectionId,
+            UserId = _currentUserService.UserId ?? request.ConnectionId,
             Action = "SLOT_HELD",
             ResourceName = nameof(DoctorSlot),
             ResourceId = slot.Id.ToString(),
@@ -186,7 +191,7 @@ public class SchedulingService : ISchedulingService
 
             _context.AuditLogs.Add(new AuditLog
             {
-                UserId = connectionId,
+                UserId = _currentUserService.UserId ?? connectionId,
                 Action = "SLOT_RELEASED",
                 ResourceName = nameof(DoctorSlot),
                 ResourceId = slot.Id.ToString(),
@@ -233,7 +238,7 @@ public class SchedulingService : ISchedulingService
         // Record HIPAA Audit Trail (Notice: NID and notes are NOT written to cleartext audit logs)
         _context.AuditLogs.Add(new AuditLog
         {
-            UserId = request.PatientName,
+            UserId = _currentUserService.UserId ?? request.PatientName,
             Action = "APPOINTMENT_BOOKED",
             ResourceName = nameof(DoctorSlot),
             ResourceId = slot.Id.ToString(),
