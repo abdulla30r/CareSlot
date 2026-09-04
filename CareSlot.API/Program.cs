@@ -1,3 +1,4 @@
+using CareSlot.API.Hubs;
 using CareSlot.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -5,6 +6,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+
+// Register SignalR for real-time slot synchronization
+builder.Services.AddSignalR();
 
 // Register Clean Architecture Infrastructure (EF Core & Encryption)
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -36,5 +40,8 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Map SignalR Hub
+app.MapHub<SchedulingHub>("/hubs/scheduling");
 
 app.Run();

@@ -1,6 +1,19 @@
 @CareSlot.API_HostAddress = http://localhost:5232
 
-GET {{CareSlot.API_HostAddress}}/weatherforecast/
+### 1. Get all Doctors
+GET {{CareSlot.API_HostAddress}}/api/doctors
+Accept: application/json
+
+###
+
+### 2. Generate Monday-Friday slots for Dr. Sarah Jenkins
+POST {{CareSlot.API_HostAddress}}/api/doctors/11111111-1111-1111-1111-111111111111/slots/generate
+Accept: application/json
+
+###
+
+### 3. Get all slots for Dr. Sarah Jenkins
+GET {{CareSlot.API_HostAddress}}/api/doctors/11111111-1111-1111-1111-111111111111/slots
 Accept: application/json
 
 ###

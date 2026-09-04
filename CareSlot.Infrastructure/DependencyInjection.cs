@@ -1,6 +1,7 @@
 using CareSlot.Application.Common.Interfaces;
 using CareSlot.Infrastructure.Persistence;
 using CareSlot.Infrastructure.Security;
+using CareSlot.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,9 @@ public static class DependencyInjection
 
         services.AddDbContext<CareSlotDbContext>(options =>
             options.UseSqlServer(connectionString));
+
+        // 3. Register Scheduling Service
+        services.AddScoped<ISchedulingService, SchedulingService>();
 
         return services;
     }
