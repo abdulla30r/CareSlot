@@ -25,7 +25,15 @@ if (Test-Path "CareSlot.Client/dist/CareSlot.Client/browser") {
 Write-Host "`n[3/3] Publishing ASP.NET Core Release bundle..." -ForegroundColor Yellow
 dotnet publish CareSlot.API/CareSlot.API.csproj -c Release -o ./publish
 
+# 4. Create CareSlot-Deploy.zip for 1-click deployment
+Write-Host "`n[4/4] Compressing to CareSlot-Deploy.zip..." -ForegroundColor Yellow
+if (Test-Path ".\CareSlot-Deploy.zip") {
+    Remove-Item ".\CareSlot-Deploy.zip" -Force
+}
+Compress-Archive -Path .\publish\* -DestinationPath .\CareSlot-Deploy.zip -Force
+
 Write-Host "`n=========================================" -ForegroundColor Green
-Write-Host "SUCCESS! Deployment package ready in: ./publish" -ForegroundColor Green
-Write-Host "Upload the contents of ./publish to your MonsterASP.net wwwroot directory." -ForegroundColor Green
+Write-Host "SUCCESS! Deployment zip created: ./CareSlot-Deploy.zip" -ForegroundColor Green
+Write-Host "Upload and Unpack CareSlot-Deploy.zip in MonsterASP.net File Manager." -ForegroundColor Green
 Write-Host "=========================================" -ForegroundColor Green
+
