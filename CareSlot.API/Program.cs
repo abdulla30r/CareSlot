@@ -59,7 +59,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Initialize SQL Server Database Tables & Seed RBAC
+// Initialize SQL Server Database Tables & Seed Seed Data
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -69,8 +69,54 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<CareSlotDbContext>();
         var passwordHasher = services.GetRequiredService<IPasswordHasherService>();
 
-        // 1. Ensure Roles, Users, and UserRoles tables exist
+        // 1. Ensure all tables exist (Doctors, DoctorSlots, AuditLogs, Roles, Users, UserRoles)
         await context.Database.ExecuteSqlRawAsync(@"
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Doctors')
+            BEGIN
+                CREATE TABLE [Doctors] (
+                    [Id] uniqueidentifier NOT NULL,
+                    [Name] nvarchar(150) NOT NULL,
+                    [Specialty] nvarchar(100) NOT NULL,
+                    CONSTRAINT [PK_Doctors] PRIMARY KEY ([Id])
+                );
+            END
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'DoctorSlots')
+            BEGIN
+                CREATE TABLE [DoctorSlots] (
+                    [Id] uniqueidentifier NOT NULL,
+                    [DoctorId] uniqueidentifier NOT NULL,
+                    [StartTime] datetime2 NOT NULL,
+                    [EndTime] datetime2 NOT NULL,
+                    [Status] int NOT NULL,
+                    [RowVersion] rowversion NOT NULL,
+                    [HeldBy] nvarchar(max) NULL,
+                    [HeldUntilUtc] datetime2 NULL,
+                    [PatientName] nvarchar(150) NULL,
+                    [EncryptedNid] nvarchar(500) NULL,
+                    [EncryptedNotes] nvarchar(2000) NULL,
+                    CONSTRAINT [PK_DoctorSlots] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_DoctorSlots_Doctors_DoctorId] FOREIGN KEY ([DoctorId]) REFERENCES [Doctors] ([Id]) ON DELETE CASCADE
+                );
+                CREATE INDEX [IX_DoctorSlots_DoctorId_StartTime_Status] ON [DoctorSlots] ([DoctorId], [StartTime], [Status]);
+            END
+
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'AuditLogs')
+            BEGIN
+                CREATE TABLE [AuditLogs] (
+                    [Id] uniqueidentifier NOT NULL,
+                    [UserId] nvarchar(100) NOT NULL,
+                    [Action] nvarchar(50) NOT NULL,
+                    [ResourceName] nvarchar(50) NOT NULL,
+                    [ResourceId] nvarchar(100) NOT NULL,
+                    [IpAddress] nvarchar(50) NULL,
+                    [TimestampUtc] datetime2 NOT NULL,
+                    CONSTRAINT [PK_AuditLogs] PRIMARY KEY ([Id])
+                );
+                CREATE INDEX [IX_AuditLogs_ResourceId] ON [AuditLogs] ([ResourceId]);
+                CREATE INDEX [IX_AuditLogs_TimestampUtc] ON [AuditLogs] ([TimestampUtc]);
+            END
+
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Roles')
             BEGIN
                 CREATE TABLE [Roles] (
@@ -119,7 +165,18 @@ using (var scope = app.Services.CreateScope())
             END
         ");
 
-        // 2. Seed Default Roles if missing
+        // 2. Seed Sample Doctors if missing
+        if (!await context.Doctors.AnyAsync())
+        {
+            context.Doctors.AddRange(
+                new Doctor { Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), Name = "Dr. Sarah Jenkins", Specialty = "Cardiology" },
+                new Doctor { Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), Name = "Dr. Marcus Chen", Specialty = "Neurology" },
+                new Doctor { Id = Guid.Parse("33333333-3333-3333-3333-333333333333"), Name = "Dr. Emily Rodriguez", Specialty = "Pediatrics" }
+            );
+            await context.SaveChangesAsync();
+        }
+
+        // 3. Seed Default Roles if missing
         var roleCustomer = await context.Roles.FirstOrDefaultAsync(r => r.Name == Roles.Customer);
         if (roleCustomer == null)
         {
@@ -160,7 +217,7 @@ using (var scope = app.Services.CreateScope())
         }
         await context.SaveChangesAsync();
 
-        // 3. Seed Default Personas if missing
+        // 4. Seed Default Personas if missing
         if (!await context.Users.AnyAsync(u => u.Email == "patient@careslot.local"))
         {
             var patient = new User
@@ -210,15 +267,19 @@ using (var scope = app.Services.CreateScope())
         }
 
         await context.SaveChangesAsync();
-        logger.LogInformation("Database RBAC tables and initial seed accounts verified successfully.");
+        logger.LogInformation("Database tables and seed data initialized successfully.");
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "An error occurred while initializing the RBAC database tables.");
+        logger.LogError(ex, "An error occurred while initializing the database tables.");
     }
 }
 
 app.UseCors("AllowAngularApp");
+
+// Serve Angular static SPA files from wwwroot
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -238,5 +299,8 @@ app.MapControllers();
 
 // Map SignalR Hub
 app.MapHub<SchedulingHub>("/hubs/scheduling");
+
+// SPA client-side routing fallback
+app.MapFallbackToFile("index.html");
 
 app.Run();

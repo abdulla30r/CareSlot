@@ -12,3 +12,4 @@ public class Role
 
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }
+

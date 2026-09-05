@@ -26,6 +26,8 @@ bld/
 [Bb]in/
 [Oo]bj/
 [Ll]og/
+publish/
+CareSlot.API/wwwroot/
 
 ## =====================================
 ## Angular & Node.js
