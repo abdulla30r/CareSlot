@@ -358,8 +358,27 @@ interface DayGroup {
             </div>
           </div>
 
+          <!-- Empty State (No Slots Scheduled) -->
+          <div *ngIf="!isLoading() && slots().length === 0" class="py-16 px-6 text-center bg-white rounded-3xl border border-dashed border-slate-300 my-4 shadow-sm">
+            <div class="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
+              📅
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 mb-1">No Clinical Slots Scheduled</h3>
+            <p class="text-xs text-slate-500 max-w-md mx-auto mb-5">
+              {{ doctor.name }} currently has no open consultation slots on the calendar for this period.
+            </p>
+            <button 
+              type="button"
+              (click)="populateDemoSlots()"
+              class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+            >
+              <span>✨</span>
+              <span>Populate Clinical Schedule</span>
+            </button>
+          </div>
+
           <!-- 5-Day Weekly Grid (Monday to Friday) -->
-          <div *ngIf="!isLoading()" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div *ngIf="!isLoading() && slots().length > 0" class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div *ngFor="let day of groupedDays()" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-3.5 flex flex-col">
               <!-- Day Header -->
               <div class="text-center pb-3 mb-3 border-b border-slate-100">
@@ -644,6 +663,24 @@ export class CalendarComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Failed to generate slots:', err);
+        this.isLoading.set(false);
+      }
+    });
+  }
+
+  public populateDemoSlots(): void {
+    this.isLoading.set(true);
+    this.schedulingService.populateDemoSlots().subscribe({
+      next: (res) => {
+        const doc = this.selectedDoctor();
+        if (doc) {
+          this.loadSlots(doc.id);
+        } else {
+          this.isLoading.set(false);
+        }
+      },
+      error: (err) => {
+        console.error('Failed to populate slots:', err);
         this.isLoading.set(false);
       }
     });

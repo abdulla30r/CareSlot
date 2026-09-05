@@ -42,12 +42,27 @@ public class DoctorsController : ControllerBase
         [FromQuery] DateTime? endDate,
         CancellationToken ct)
     {
-        // Default to current week (Monday to Friday) if dates not provided
-        var start = startDate ?? DateTime.UtcNow.Date;
-        var end = endDate ?? start.AddDays(7);
+        // Default to current Monday through next 2 weeks if dates not provided
+        var now = DateTime.UtcNow.Date;
+        int diff = (7 + (int)now.DayOfWeek - (int)DayOfWeek.Monday) % 7;
+        var currentMonday = now.AddDays(-diff);
+
+        var start = startDate ?? currentMonday;
+        var end = endDate ?? currentMonday.AddDays(14);
 
         var slots = await _schedulingService.GetDoctorSlotsAsync(id, start, end, ct);
         return Ok(slots);
+    }
+
+    /// <summary>
+    /// Populates or seeds demo schedule slots for all doctors.
+    /// Accessible to any authenticated user to enable immediate testing/demonstration.
+    /// </summary>
+    [HttpPost("populate-demo-slots")]
+    public async Task<ActionResult> PopulateDemoSlots(CancellationToken ct)
+    {
+        var count = await _schedulingService.PopulateDemoSlotsAsync(ct);
+        return Ok(new { message = $"Successfully populated {count} clinical slots across all clinicians.", slotsCreated = count });
     }
 
     /// <summary>

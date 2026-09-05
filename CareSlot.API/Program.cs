@@ -267,6 +267,15 @@ using (var scope = app.Services.CreateScope())
         }
 
         await context.SaveChangesAsync();
+
+        // 5. Seed Clinical Schedule Slots if missing
+        if (!await context.DoctorSlots.AnyAsync())
+        {
+            var schedulingService = services.GetRequiredService<ISchedulingService>();
+            var seededSlots = await schedulingService.PopulateDemoSlotsAsync();
+            logger.LogInformation("Successfully seeded {Count} demo clinical slots across all doctors.", seededSlots);
+        }
+
         logger.LogInformation("Database tables and seed data initialized successfully.");
     }
     catch (Exception ex)

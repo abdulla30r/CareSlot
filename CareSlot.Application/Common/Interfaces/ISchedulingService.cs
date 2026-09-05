@@ -39,5 +39,8 @@ public interface ISchedulingService
     // 10. Manage Availability (Doctor & Admin: custom shifts, intervals, clearing open slots)
     Task<List<SlotDto>> ConfigureAvailabilityAsync(Guid doctorId, ManageAvailabilityRequest request, string clientIp, CancellationToken ct = default);
     Task<int> ClearUnbookedSlotsAsync(Guid doctorId, DateTime startDate, DateTime endDate, string clientIp, CancellationToken ct = default);
+
+    // 11. Populate / Seed Demo Slots across clinicians
+    Task<int> PopulateDemoSlotsAsync(CancellationToken ct = default);
 }
 

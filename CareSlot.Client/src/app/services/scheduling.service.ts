@@ -99,6 +99,13 @@ export class SchedulingService {
   }
 
   /**
+   * Populates / resets demo schedule slots for all doctors.
+   */
+  public populateDemoSlots(): Observable<{ message: string; slotsCreated: number }> {
+    return this.http.post<{ message: string; slotsCreated: number }>('/api/doctors/populate-demo-slots', {});
+  }
+
+  /**
    * Holds an available slot for 2 minutes while filling the booking form.
    * Sends the caller's unique SignalR connectionId and the slot's rowVersion.
    */

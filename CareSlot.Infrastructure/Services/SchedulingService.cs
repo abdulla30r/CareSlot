@@ -560,5 +560,100 @@ public class SchedulingService : ISchedulingService
 
         return unbookedSlots.Count;
     }
+
+    public async Task<int> PopulateDemoSlotsAsync(CancellationToken ct = default)
+    {
+        var doctors = await _context.Doctors.ToListAsync(ct);
+        if (doctors.Count == 0) return 0;
+
+        var now = DateTime.UtcNow.Date;
+        int diff = (7 + (int)now.DayOfWeek - (int)DayOfWeek.Monday) % 7;
+        var currentMonday = now.AddDays(-diff);
+
+        var sampleSlots = new List<DoctorSlot>();
+
+        foreach (var doc in doctors)
+        {
+            // Populate current week and next week (10 weekdays)
+            for (int week = 0; week < 2; week++)
+            {
+                var weekStart = currentMonday.AddDays(week * 7);
+                for (int day = 0; day < 5; day++) // Monday to Friday
+                {
+                    var dayDate = weekStart.AddDays(day);
+
+                    // Daily shift hours: 9 AM, 10 AM, 11 AM, 2 PM, 3 PM, 4 PM
+                    var hours = new[] { 9, 10, 11, 14, 15, 16 };
+
+                    foreach (var h in hours)
+                    {
+                        var start1 = dayDate.AddHours(h);
+                        var start2 = dayDate.AddHours(h).AddMinutes(30);
+
+                        if (!await _context.DoctorSlots.AnyAsync(s => s.DoctorId == doc.Id && s.StartTime == start1, ct))
+                        {
+                            sampleSlots.Add(new DoctorSlot
+                            {
+                                Id = Guid.NewGuid(),
+                                DoctorId = doc.Id,
+                                StartTime = start1,
+                                EndTime = start1.AddMinutes(30),
+                                Status = SlotStatus.Available
+                            });
+                        }
+
+                        if (!await _context.DoctorSlots.AnyAsync(s => s.DoctorId == doc.Id && s.StartTime == start2, ct))
+                        {
+                            sampleSlots.Add(new DoctorSlot
+                            {
+                                Id = Guid.NewGuid(),
+                                DoctorId = doc.Id,
+                                StartTime = start2,
+                                EndTime = start2.AddMinutes(30),
+                                Status = SlotStatus.Available
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if (sampleSlots.Count > 0)
+        {
+            // Seed sample booked consultation for Dr. Sarah Jenkins
+            var drJenkins = doctors.FirstOrDefault(d => d.Name.Contains("Jenkins") || d.Specialty.Contains("Cardio"));
+            if (drJenkins != null)
+            {
+                var bookedSlot = sampleSlots.FirstOrDefault(s => s.DoctorId == drJenkins.Id);
+                if (bookedSlot != null)
+                {
+                    bookedSlot.Status = SlotStatus.Booked;
+                    bookedSlot.PatientName = "John Doe";
+                    bookedSlot.EncryptedNid = "NID-9482014";
+                    bookedSlot.EncryptedNotes = "Patient presents with episodic exertional dyspnea and palpitations. Prescribed ECG.";
+                }
+            }
+
+            // Seed sample booked consultation for Dr. Emily Rodriguez
+            var drRodriguez = doctors.FirstOrDefault(d => d.Name.Contains("Rodriguez") || d.Specialty.Contains("Pediatric"));
+            if (drRodriguez != null)
+            {
+                var bookedSlot = sampleSlots.FirstOrDefault(s => s.DoctorId == drRodriguez.Id);
+                if (bookedSlot != null)
+                {
+                    bookedSlot.Status = SlotStatus.Booked;
+                    bookedSlot.PatientName = "Sophie Taylor";
+                    bookedSlot.EncryptedNid = "NID-8830192";
+                    bookedSlot.EncryptedNotes = "Routine 6-month developmental milestone evaluation and vaccination schedule.";
+                }
+            }
+
+            _context.DoctorSlots.AddRange(sampleSlots);
+            await _context.SaveChangesAsync(ct);
+            _logger.LogInformation("Successfully populated {Count} clinical schedule slots.", sampleSlots.Count);
+        }
+
+        return sampleSlots.Count;
+    }
 }
 
